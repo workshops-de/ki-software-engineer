@@ -9,6 +9,14 @@ export class BookApiClient {
 
   constructor(private http: HttpClient) {}
 
+  getBook(isbn: string): Observable<Book> {
+    return this.http.get<Book>(`${this.apiUrl}/${encodeURIComponent(isbn)}`);
+  }
+
+  updateBook(isbn: string, book: Book): Observable<Book> {
+    return this.http.put<Book>(`${this.apiUrl}/${encodeURIComponent(isbn)}`, book);
+  }
+
   getBooks(pageSize: number = 10, searchTerm?: string): Observable<Book[]> {
     let params = new HttpParams().set('_limit', pageSize.toString());
 

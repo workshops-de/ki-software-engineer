@@ -1,9 +1,18 @@
 @use '@angular/material' as mat;
 
 :root {
+  @include mat.theme(
+    (
+      color: mat.$azure-palette,
+      typography: Roboto,
+      density: 0
+    )
+  );
   @include mat.snack-bar-overrides(
     (
-      container-color: #f4f4f4
+      container-color: #f4f4f4,
+      supporting-text-color: #1f2937,
+      button-color: #1d4ed8
     )
   );
 }

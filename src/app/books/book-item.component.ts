@@ -1,24 +1,28 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
-import { RouterModule } from '@angular/router';
+import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 import { Book } from './book';
 
 @Component({
   selector: 'app-book-item',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, MatButtonModule],
   template: `
     <div
       class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col h-full"
     >
       <div class="relative aspect-[3/4] overflow-hidden">
         <img
-          *ngIf="book.cover"
+          *ngIf="book.cover && failedCover !== book.cover"
           [src]="book.cover"
           [alt]="book.title"
+          (error)="failedCover = book.cover"
           class="w-full h-full object-contain bg-gray-100"
         />
-        <div *ngIf="!book.cover" class="w-full h-full bg-gray-100 flex items-center justify-center">
+        <div
+          *ngIf="!book.cover || failedCover === book.cover"
+          class="w-full h-full bg-gray-100 flex items-center justify-center"
+        >
           <span class="text-gray-500 text-sm font-medium">No cover available</span>
         </div>
       </div>
@@ -31,12 +35,21 @@ import { Book } from './book';
           </p>
           <p *ngIf="book.isbn" class="text-xs text-gray-500 mt-2">ISBN: {{ book.isbn }}</p>
         </div>
+        <button
+          mat-stroked-button
+          type="button"
+          class="mt-4"
+          (click)="details.emit(book)"
+          [attr.aria-label]="'Details for ' + book.title"
+        >
+          Details
+        </button>
       </div>
     </div>
   `
 })
 export class BookItemComponent {
   @Input() book!: Book;
-
-  // No longer needed as we have a single author field
+  @Output() details = new EventEmitter<Book>();
+  failedCover: string | undefined;
 }

@@ -25,6 +25,28 @@ Ein Architekturreview mit Aufbau, Datenfluss, Risikobewertungen und priorisierte
 
 ## The API
 
+Book details use `GET /books/:isbn`; editing sends the full book to `PUT /books/:isbn`,
+including its unchanged `id`, `userId`, and ISBN. `price` remains a string.
+See the [Bookmonkey API documentation](https://www.npmjs.com/package/bookmonkey-api).
+
+### Book details checks
+
+```sh
+npm run build
+npx playwright install
+npx playwright test tests/book-details.spec.ts
+```
+
+The Playwright suite starts Angular and mocks API responses; no running API is needed.
+It covers keyboard access, details, draft cancellation, validation, saving and search
+refresh, load/save failures, and a mobile viewport with a broken cover.
+
+The local API was unreachable during implementation. When it is available, verify
+the live contract using a disposable book: GET by ISBN returns a complete `Book`,
+PUT by the same ISBN accepts and returns the complete updated book, preserves
+`id`/`userId` and string `price`, and a subsequent GET returns the saved values.
+Also check a missing ISBN returns HTTP 404 and that browser CORS permits GET/PUT.
+
 | Command              | Description                                       |
 | -------------------- | ------------------------------------------------- |
 | `npx bookmonkey-api` | Installs and starts the HTTP API "Bookmonkey API" |

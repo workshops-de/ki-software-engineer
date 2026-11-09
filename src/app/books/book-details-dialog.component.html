@@ -1,0 +1,112 @@
+<h2 mat-dialog-title>Book details</h2>
+<mat-dialog-content [attr.aria-busy]="state === 'loading' || state === 'saving'">
+  @if (state === 'loading') {
+    <p role="status" class="py-8">Loading book details...</p>
+  } @else if (state === 'error') {
+    <p role="alert">{{ loadError }}</p>
+    <button mat-stroked-button type="button" (click)="load()">Retry</button>
+  } @else if (state === 'viewing' && book) {
+    <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-6">
+      <div class="bg-gray-100 flex items-center justify-center min-h-48 rounded overflow-hidden">
+        @if (book.cover && !coverFailed) {
+          <img
+            [src]="book.cover"
+            [alt]="book.title"
+            (error)="coverFailed = true"
+            class="w-full max-h-64 object-contain"
+          />
+        } @else {
+          <span class="text-gray-500 p-4 text-center">No cover available</span>
+        }
+      </div>
+      <dl class="grid gap-2">
+        <div>
+          <dt>Title</dt>
+          <dd>{{ book.title }}</dd>
+        </div>
+        <div>
+          <dt>Subtitle</dt>
+          <dd>{{ book.subtitle || '—' }}</dd>
+        </div>
+        <div>
+          <dt>Author</dt>
+          <dd>{{ book.author }}</dd>
+        </div>
+        <div>
+          <dt>ISBN</dt>
+          <dd>{{ book.isbn }}</dd>
+        </div>
+        <div>
+          <dt>Publisher</dt>
+          <dd>{{ book.publisher || '—' }}</dd>
+        </div>
+        <div>
+          <dt>Pages</dt>
+          <dd>{{ book.numPages }}</dd>
+        </div>
+        <div>
+          <dt>Price</dt>
+          <dd>{{ book.price || '—' }}</dd>
+        </div>
+      </dl>
+      <div class="sm:col-span-2">
+        <h3 class="font-semibold">Description</h3>
+        <p class="whitespace-pre-wrap break-words">{{ book.abstract || 'No description available.' }}</p>
+      </div>
+    </div>
+  } @else {
+    <form
+      id="book-edit-form"
+      [formGroup]="form"
+      (ngSubmit)="save()"
+      class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 pt-2"
+    >
+      <mat-form-field
+        ><mat-label>Title</mat-label><input matInput formControlName="title" required />
+        @if (form.controls.title.invalid) {
+          <mat-error>Title is required.</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field><mat-label>Subtitle</mat-label><input matInput formControlName="subtitle" /></mat-form-field>
+      <mat-form-field
+        ><mat-label>Author</mat-label><input matInput formControlName="author" required />
+        @if (form.controls.author.invalid) {
+          <mat-error>Author is required.</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field><mat-label>ISBN</mat-label><input matInput [value]="book?.isbn" readonly /></mat-form-field>
+      <mat-form-field><mat-label>Publisher</mat-label><input matInput formControlName="publisher" /></mat-form-field>
+      <mat-form-field
+        ><mat-label>Pages</mat-label
+        ><input matInput type="number" formControlName="numPages" min="1" step="1" required />
+        @if (form.controls.numPages.invalid) {
+          <mat-error>Pages must be a positive whole number.</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field><mat-label>Price</mat-label><input matInput formControlName="price" /></mat-form-field>
+      <mat-form-field><mat-label>Cover URL</mat-label><input matInput formControlName="cover" /></mat-form-field>
+      <mat-form-field class="sm:col-span-2"
+        ><mat-label>Description</mat-label><textarea matInput formControlName="abstract" rows="5"></textarea>
+      </mat-form-field>
+      @if (saveError) {
+        <p role="alert" class="sm:col-span-2 text-red-700">{{ saveError }}</p>
+      }
+      @if (state === 'saving') {
+        <p role="status">Saving changes...</p>
+      }
+    </form>
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  @if (state === 'editing' || state === 'saving') {
+    <button mat-button type="button" (click)="cancel()" [disabled]="state === 'saving'">Cancel</button>
+    <button mat-flat-button type="submit" form="book-edit-form" [disabled]="state === 'saving'">
+      {{ state === 'saving' ? 'Saving...' : 'Save' }}
+    </button>
+  } @else {
+    <button mat-button type="button" mat-dialog-close>Close</button>
+    @if (state === 'viewing') {
+      <button mat-flat-button type="button" (click)="edit()">Edit</button>
+    }
+  }
+</mat-dialog-actions>
