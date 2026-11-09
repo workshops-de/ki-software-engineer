@@ -8,8 +8,11 @@ import { Book } from './book';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div
-      class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col h-full"
+    <a
+      [routerLink]="['/books', book.id]"
+      tabindex="0"
+      [attr.aria-label]="'View details for ' + book.title"
+      class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col h-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
     >
       <div class="relative aspect-[3/4] overflow-hidden">
         <img
@@ -32,11 +35,9 @@ import { Book } from './book';
           <p *ngIf="book.isbn" class="text-xs text-gray-500 mt-2">ISBN: {{ book.isbn }}</p>
         </div>
       </div>
-    </div>
+    </a>
   `
 })
 export class BookItemComponent {
   @Input() book!: Book;
-
-  // No longer needed as we have a single author field
 }
