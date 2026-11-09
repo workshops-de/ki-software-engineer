@@ -12,6 +12,10 @@
   <br>
 </p>
 
+## Architecture
+
+See [the architecture summary](ARCHITECTURE.md) for the technology stack, dependencies, application structure, and data flow.
+
 ## Local Development
 
 | Command       | Description                                      |
@@ -26,6 +30,9 @@
 | `npx bookmonkey-api` | Installs and starts the HTTP API "Bookmonkey API" |
 
 The API provides fake data that you can use in your Angular application.
+
+The frontend's API origin is configured through the `API_BASE_URL` provider in
+`src/app/app.config.ts`. Change that provider for a different backend; the book client appends `/books`.
 
 > [!NOTE]
 > The API starts at http://localhost:4730.

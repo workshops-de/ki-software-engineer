@@ -1,0 +1,65 @@
+<div class="container mx-auto max-w-5xl px-4 py-12">
+  <a
+    routerLink="/"
+    class="inline-block mb-8 rounded text-blue-700 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
+    >Back to books</a
+  >
+
+  @if (state$ | async; as state) {
+    @switch (state.status) {
+      @case ('loading') {
+        <p role="status" class="py-20 text-center text-gray-600 animate-pulse">Loading book...</p>
+      }
+      @case ('not-found') {
+        <div role="alert" class="rounded-lg bg-gray-50 p-8">
+          <h1 class="text-2xl font-bold text-gray-800">Book not found</h1>
+          <p class="mt-3 text-gray-600">
+            This book could not be found. Return to the collection to choose another book.
+          </p>
+        </div>
+      }
+      @case ('error') {
+        <div role="alert" class="rounded-lg bg-gray-50 p-8">
+          <h1 class="text-2xl font-bold text-gray-800">Unable to load book</h1>
+          <p class="mt-3 text-gray-600">Please try again.</p>
+          <button
+            type="button"
+            (click)="retry()"
+            class="mt-6 rounded-md bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      }
+      @case ('success') {
+        <article class="grid gap-8 rounded-lg bg-white p-6 shadow-md md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:p-8">
+          <app-book-cover [src]="state.book.cover" [title]="state.book.title" />
+          <div class="min-w-0 break-words">
+            <h1 class="text-3xl font-bold text-blue-700">{{ state.book.title }}</h1>
+            @if (state.book.subtitle) {
+              <p class="mt-2 text-xl text-gray-600">{{ state.book.subtitle }}</p>
+            }
+            <dl class="mt-6 grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-gray-700">
+              <dt class="font-semibold">Author</dt>
+              <dd>{{ state.book.author }}</dd>
+              <dt class="font-semibold">ISBN</dt>
+              <dd>{{ state.book.isbn }}</dd>
+              <dt class="font-semibold">Publisher</dt>
+              <dd>{{ state.book.publisher }}</dd>
+              <dt class="font-semibold">Pages</dt>
+              <dd>{{ state.book.numPages }}</dd>
+              <dt class="font-semibold">Price</dt>
+              <dd>{{ state.book.price }}</dd>
+            </dl>
+            <h2 class="mt-8 text-xl font-semibold text-gray-800">Abstract</h2>
+            <p
+              data-testid="book-abstract"
+              class="mt-3 whitespace-pre-wrap leading-relaxed text-gray-700"
+              [textContent]="state.book.abstract"
+            ></p>
+          </div>
+        </article>
+      }
+    }
+  }
+</div>
