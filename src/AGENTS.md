@@ -19,20 +19,22 @@ Book-specific rules live in [app/books/AGENTS.md](./app/books/AGENTS.md).
 
 ## Error handling pattern
 
-These are recommended boundaries for new or changed error handling. Currently, the application
-registers browser global error listeners, but has no custom `ErrorHandler` or HTTP interceptor.
+The application registers browser global error listeners, a custom
+[GlobalErrorHandler](./app/shared/global-error-handler.ts), and an
+[HTTP error interceptor](./app/shared/http-error.interceptor.ts). Preserve these boundaries:
 
 - Handle expected request failures near the feature operation, where recovery and user feedback
   can be decided. Model not-found, retryable failure, and successful empty results separately.
-- Use a root-provided Angular `ErrorHandler` for unexpected, unhandled errors when centralized
-  reporting is required. Register it in [app.config.ts](./app/app.config.ts); keep shared reporting
-  code in [shared](./app/shared). It is a fallback, not the normal request-recovery path.
-- For cross-cutting HTTP reporting, use a functional interceptor registered through `provideHttpClient`
-  with `withInterceptors`. Propagate failures to feature consumers; do not replace them with empty
-  success responses or apply automatic retries to every request.
+- The root `ErrorHandler` reports unexpected, unhandled errors and shows a generic reload message.
+  [ErrorReporter](./app/shared/error-reporter.service.ts) writes to the browser console and deduplicates
+  object errors by identity; the handler independently deduplicates notifications for that error object.
+  Keep shared reporting code in [shared](./app/shared).
+- The functional HTTP interceptor reports network/server failures and propagates the original error
+  to feature consumers. Do not replace failures with empty success responses or automatically retry
+  every request. HTTP diagnostics include method, endpoint without query parameters, and status.
 - Give user-facing error feedback one owner. Expected feature failures should use the local error
   view; centralized reporting should not also produce a duplicate toast. If transient notification
-  is appropriate, reuse [ToastService](./app/shared/toast.service.ts), which is currently unused.
+  is appropriate, reuse [ToastService](./app/shared/toast.service.ts), used by the global handler.
 - Keep user messages actionable and free of raw exception details. Test local recovery and shared
   reporting separately when introducing this infrastructure.
 

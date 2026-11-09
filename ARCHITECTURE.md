@@ -2,7 +2,7 @@
 
 BookMonkey is a small Angular workshop application for browsing, searching, and viewing book details. It is a browser-rendered single-page application with list and detail views in one book feature, a separate HTTP API, and state owned by the feature components.
 
-This document describes the current repository implementation, not a proposed target architecture. Source and configuration were inspected on 2026-11-09. During the book-details implementation in this work session, the production build, targeted browser tests, and an isolated real-API smoke check were executed successfully. The verification section distinguishes these results from untested behavior; those runtime checks were not repeated for this documentation-only update.
+This document describes the current repository implementation after the refactoring on 2026-11-09. Source and configuration were inspected and the production build was executed. The verification section distinguishes current checks from historical book-details checks and behavior that remains untested. [REFACTORING.md](./REFACTORING.md) records the original findings and their implementation status.
 
 ## Application structure
 
@@ -10,31 +10,35 @@ The application uses standalone components and Angular dependency injection; the
 
 ```mermaid
 flowchart TD
-    Main["main.ts: bootstrapApplication"] --> Config["appConfig: router, HTTP, zones, animations"]
+    Main["main.ts: bootstrapApplication"] --> Config["appConfig: router, HTTP interceptor, error handler, zones, animations"]
     Main --> App["App: header, router outlet, footer"]
     App --> Routes["Routes: / and /books/:id; wildcard redirects to /"]
-    Routes --> List["BookListComponent: search, loading, books"]
+    Routes --> List["BookListComponent: search actions, request state, retry"]
     Routes --> Details["BookDetailsComponent: route ID, loading, book, errors, retry"]
     List --> Item["BookItemComponent: book card and detail link"]
     List --> Client["BookApiClient: root-provided service"]
     Details --> Client
     Client --> Http["Angular HttpClient / RxJS Observable"]
-    Http --> API["External Bookmonkey API: localhost:4730/books"]
-    Toast["ToastService: currently unused"] -.-> Snack["Material MatSnackBar"]
+    Http --> Interceptor["httpErrorInterceptor: report network/server errors, rethrow"]
+    Interceptor --> API["External Bookmonkey API: localhost:4730/books"]
+    Interceptor --> Reporter["ErrorReporter: browser console, deduplicated by error identity"]
+    Global["GlobalErrorHandler: unexpected unhandled errors"] --> Reporter
+    Global --> Toast["ToastService: safe generic message"]
+    Toast --> Snack["Material MatSnackBar"]
 ```
 
 | Area                  | Source                                                                   | Responsibility                                                                                                                                                    |
 | --------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Bootstrap             | [src/main.ts](./src/main.ts)                                             | Starts `App` with `bootstrapApplication`; logs bootstrap failures.                                                                                                |
-| Application providers | [app.config.ts](./src/app/app.config.ts)                                 | Registers global browser error listeners, zone-based change detection with event coalescing, routing, HTTP, and animations.                                       |
+| Application providers | [app.config.ts](./src/app/app.config.ts)                                 | Registers browser error listeners, custom error handling, zone-based change detection with event coalescing, routing, HTTP error reporting, and animations.       |
 | Shell                 | [app.ts](./src/app/app.ts), [app.html](./src/app/app.html)               | Renders the shared header/footer and `RouterOutlet`.                                                                                                              |
 | Routing               | [app.routes.ts](./src/app/app.routes.ts)                                 | Eagerly imports the list for `/` and details for `/books/:id`; redirects unmatched paths to the list. No lazy routes, guards, or resolvers are configured.        |
-| Feature/controller    | [book-list.component.ts](./src/app/books/book-list.component.ts)         | Owns loading/search/result state, triggers requests, and renders book cards and empty/loading states.                                                             |
+| Feature/controller    | [book-list.component.ts](./src/app/books/book-list.component.ts)         | Owns typed search actions and loading/success/error states; cancels superseded work and supports clear and retry.                                                 |
 | Detail view           | [book-details.component.ts](./src/app/books/book-details.component.ts)   | Loads a book from the route ID, renders its details, and owns loading, not-found, error, retry, and cover-fallback behavior.                                      |
 | Presentation          | [book-item.component.ts](./src/app/books/book-item.component.ts)         | Receives a `Book` input and displays its cover, title, optional subtitle, author, and ISBN inside a keyboard-accessible link to `/books/:id`. Makes no API calls. |
 | API adapter           | [book-api-client.service.ts](./src/app/books/book-api-client.service.ts) | Encapsulates the API URL and query parameters; `getBooks` returns `Observable<Book[]>`, and `getBook(id)` returns `Observable<Book>` with a URL-encoded ID.       |
 | Data contract         | [book.ts](./src/app/books/book.ts)                                       | Defines the TypeScript interface shared by the API client and components.                                                                                         |
-| Shared utility        | [toast.service.ts](./src/app/shared/toast.service.ts)                    | Wraps Material snack bars with a default 3-second duration. No current application code calls this service.                                                       |
+| Shared utility        | [toast.service.ts](./src/app/shared/toast.service.ts)                    | Wraps Material snack bars; the global error handler uses a 6-second generic message for unexpected failures.                                                      |
 
 The feature folder groups its UI, model, and API adapter together. The dependency direction is shell/router → feature component → API adapter → external API, with a separate presentation component below the feature component. This separation is visible in the imports; it is not enforced by a separate library or architectural lint rule.
 
@@ -42,22 +46,39 @@ The feature folder groups its UI, model, and API adapter together. The dependenc
 
 ### Book list
 
-1. On initialization, `BookListComponent` calls `getBooks` with a default `pageSize` of 10.
+1. The template subscribes once to `state$` through `AsyncPipe`. Its initial action calls `getBooks` with a default `pageSize` of 10.
 2. `BookApiClient` sends `GET http://localhost:4730/books?_limit=10`. A nonempty search adds the `q` query parameter through `HttpParams`.
-3. The component subscribes to the HTTP observable, assigns the returned books, and clears `loading`. Cards receive individual books through `@Input`; `trackById` uses each book's `id` when rendering the list.
-4. The search input uses template-driven forms (`ngModel`). Changes schedule a request after 300 ms using `setTimeout`; the next input change clears the previous pending timer.
-5. Clearing the search resets the input and immediately reloads the unfiltered list. Failed requests log to the console and clear `loading`; they do not set a separate error state or invoke `ToastService`.
+3. Search, clear, and retry actions feed a single pipeline. Repeated search terms are suppressed; text changes wait 300 ms. The outer `switchMap` cancels any pending delay or active request immediately when a new action arrives, before starting the next delay or request.
+4. Clear resets the input and loads the unfiltered list immediately. Retry immediately repeats the current term without being suppressed by term deduplication.
+5. A discriminated view state exposes `loading`, `success` with books, or `error`. Successful zero results show an empty view. Failures remove previous cards and show an accessible local error view with retry; inner-stream error handling keeps later input and retries alive.
+6. The external template tracks cards by `book.id`. Destroying the view unsubscribes through `AsyncPipe`, canceling both pending delays and active requests.
 
-List state consists of ordinary component fields (`books`, `loading`, `searchTerm`, and the timeout handle). Search state is not synchronized with the URL or persisted when returning from details. `_limit` restricts the requested result count; no page navigation or offset is implemented.
+The search input uses template-driven forms (`ngModel`). Search state is not synchronized with the URL or persisted when returning from details. `_limit` restricts the requested result count; no page navigation or offset is implemented.
 
 ### Book details
 
 1. Each book card links to `/books/:id`. The detail component reads `ActivatedRoute.paramMap`, so direct navigation and reloads do not depend on an already loaded list.
 2. The route ID and retry trigger are combined into `state$`. `switchMap` starts `BookApiClient.getBook(id)`, which sends `GET http://localhost:4730/books/{encodedId}`. Changing the ID cancels the previous request. The template's `AsyncPipe` owns the subscription and unsubscribes when the view is destroyed.
-3. Each request starts with a loading state. Success provides the book; HTTP 404 produces a distinct not-found state; other failures produce an error state with a retry button. Errors are handled inside the request stream so retry and subsequent route changes remain available. These states are mutually exclusive in the emitted view state.
+3. Each request starts with a loading state. Success provides the book; HTTP 404 produces a distinct not-found state; other failures produce an error state with a retry button. Errors are handled inside the request stream so retry and subsequent route changes remain available. A discriminated union makes these request states mutually exclusive in the type as well as in emitted values.
 4. The view displays title, optional subtitle, author, ISBN, publisher, page count, price, cover, and description. Price remains the API string; the description is interpolated as text. Empty additional fields are hidden, and a missing or failed cover image produces a placeholder. `coverFailed` is local UI state reset for each request. A keyboard-accessible link returns to the list.
 
-There is no central store, query cache, or browser persistence. List state uses component fields; detail request state is an RxJS stream consumed by `AsyncPipe`.
+There is no central store, query cache, or browser persistence. Both views own typed RxJS request-state streams consumed once with `AsyncPipe`. The search term and cover failure flag remain local UI fields.
+
+### Logic and templates
+
+The list, details, and card use colocated external HTML templates with built-in `@if`, `@for`, and `@switch` control flow as needed. Components own user actions and request state, the API adapter owns transport, and the card stays presentational. Templates select views and bind values; descriptions remain plain text. No shared state framework or extra dependency was introduced.
+
+- [List template](./src/app/books/book-list.component.html)
+- [Detail template](./src/app/books/book-details.component.html)
+- [Card template](./src/app/books/book-item.component.html)
+
+### Error handling and reporting
+
+[httpErrorInterceptor](./src/app/shared/http-error.interceptor.ts), registered with `withInterceptors`, reports HTTP network failures (status 0) and server failures (status 500 and above) to [ErrorReporter](./src/app/shared/error-reporter.service.ts). It rethrows the original error without retrying or showing notifications. Feature components retain responsibility for expected failures, not-found views, and recovery.
+
+[GlobalErrorHandler](./src/app/shared/global-error-handler.ts) is registered as the application's root `ErrorHandler` alongside the existing browser global error listeners. It reports unexpected unhandled failures and lazily resolves [ToastService](./src/app/shared/toast.service.ts) to display a generic reload message within Angular's zone. Exception details remain in diagnostics. Notification failures are caught and reported rather than propagated through the handler again.
+
+The workshop reporting destination is the browser console. Reports include their source; HTTP reports add method, endpoint URL without query parameters, and status. The reporter deduplicates object errors by identity with a `WeakSet`, including errors reported by more than one layer. The global handler independently deduplicates notifications for the same error object. There is no remote telemetry or persisted report store. Expected HTTP errors produce local UI feedback without a duplicate global toast; 4xx failures are not reported by the interceptor. Bootstrap failures still use the catch handler in [main.ts](./src/main.ts).
 
 ### Data contract
 
@@ -69,22 +90,22 @@ The tables cover all direct dependencies in [package.json](./package.json). Vers
 
 ### Application dependencies
 
-| Package(s)                                                                           | Declared version | Role in this repository                                                                                                                                                                                |
-| ------------------------------------------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@angular/core`, `@angular/common`, `@angular/compiler`, `@angular/platform-browser` | `20.2.1` each    | Angular components, dependency injection, common template directives, compilation support, browser bootstrap, and HTTP support via `@angular/common/http`.                                             |
-| `@angular/router`                                                                    | `20.2.1`         | List/detail routing, book-card links, route parameters, and the shell's router outlet.                                                                                                                 |
-| `@angular/forms`                                                                     | `20.2.1`         | Template-driven search input through `FormsModule` and `ngModel`.                                                                                                                                      |
-| `@angular/animations`                                                                | `20.2.1`         | Animation support is enabled by `provideAnimations`.                                                                                                                                                   |
-| `@angular/material`                                                                  | `^20.2.0`        | Used by the currently uncalled snack-bar service and global snack-bar Sass overrides; locked to `20.2.0` in the inspected lockfile.                                                                    |
-| `@angular/cdk`                                                                       | `20.2.0`         | Declared UI infrastructure dependency alongside Material; no direct CDK imports in application source.                                                                                                 |
-| `rxjs`                                                                               | `7.8.0`          | HTTP observables; the list subscribes directly, while details combine route/retry triggers with request cancellation and error states consumed by `AsyncPipe`. No RxJS search pipeline is implemented. |
-| `zone.js`                                                                            | `0.15.0`         | Configured browser polyfill, paired with zone-based change detection.                                                                                                                                  |
-| `tslib`                                                                              | `2.3.0`          | TypeScript runtime helper dependency; `importHelpers` is enabled in the TypeScript configuration.                                                                                                      |
-| `@ngrx/signals`                                                                      | `20.0.1`         | Declared but not imported or configured in application source.                                                                                                                                         |
-| `@angular-architects/ngrx-toolkit`                                                   | `^20.1.0`        | Declared but not imported or configured; inspected lockfile resolves `20.1.0`.                                                                                                                         |
-| `@tanstack/angular-query-experimental`                                               | `^5.85.5`        | Declared but no query provider or queries are configured; inspected lockfile resolves `5.85.5`.                                                                                                        |
-| `@angular/platform-server`, `@angular/ssr`                                           | `20.2.1` each    | Declared, but there is no server bootstrap, server build entry, hydration provider, or SSR configuration.                                                                                              |
-| `express`                                                                            | `5.1.0`          | Declared, but no Express server is implemented in this repository. It is not the implementation of the separately launched Bookmonkey API here.                                                        |
+| Package(s)                                                                           | Declared version | Role in this repository                                                                                                                                 |
+| ------------------------------------------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@angular/core`, `@angular/common`, `@angular/compiler`, `@angular/platform-browser` | `20.2.1` each    | Angular components, dependency injection, template support, compilation support, browser bootstrap, and HTTP support via `@angular/common/http`.        |
+| `@angular/router`                                                                    | `20.2.1`         | List/detail routing, book-card links, route parameters, and the shell's router outlet.                                                                  |
+| `@angular/forms`                                                                     | `20.2.1`         | Template-driven search input through `FormsModule` and `ngModel`.                                                                                       |
+| `@angular/animations`                                                                | `20.2.1`         | Animation support is enabled by `provideAnimations`.                                                                                                    |
+| `@angular/material`                                                                  | `^20.2.0`        | Used by global-error snack-bar feedback and global snack-bar Sass overrides; locked to `20.2.0` in the inspected lockfile.                              |
+| `@angular/cdk`                                                                       | `20.2.0`         | Declared UI infrastructure dependency alongside Material; no direct CDK imports in application source.                                                  |
+| `rxjs`                                                                               | `7.8.0`          | HTTP observables, cancellable search/debounce and retry pipelines, typed view-state streams consumed by `AsyncPipe`, and interceptor error propagation. |
+| `zone.js`                                                                            | `0.15.0`         | Configured browser polyfill, paired with zone-based change detection.                                                                                   |
+| `tslib`                                                                              | `2.3.0`          | TypeScript runtime helper dependency; `importHelpers` is enabled in the TypeScript configuration.                                                       |
+| `@ngrx/signals`                                                                      | `20.0.1`         | Declared but not imported or configured in application source.                                                                                          |
+| `@angular-architects/ngrx-toolkit`                                                   | `^20.1.0`        | Declared but not imported or configured; inspected lockfile resolves `20.1.0`.                                                                          |
+| `@tanstack/angular-query-experimental`                                               | `^5.85.5`        | Declared but no query provider or queries are configured; inspected lockfile resolves `5.85.5`.                                                         |
+| `@angular/platform-server`, `@angular/ssr`                                           | `20.2.1` each    | Declared, but there is no server bootstrap, server build entry, hydration provider, or SSR configuration.                                               |
+| `express`                                                                            | `5.1.0`          | Declared, but no Express server is implemented in this repository. It is not the implementation of the separately launched Bookmonkey API here.         |
 
 ### Development dependencies
 
@@ -112,7 +133,7 @@ Most visual styling is implemented with Tailwind utility classes in component te
 
 The [README](./README.md) documents `npx bookmonkey-api` as a separately launched fake-data API on port 4730. It is not declared as a dependency of this project, and its implementation and persistence are outside this repository. `npm start` starts the Angular development server only.
 
-The API URL is hard-coded in [BookApiClient](./src/app/books/book-api-client.service.ts). No environment-specific endpoint configuration, development proxy, authentication, or HTTP interceptors are configured in the inspected app. When served from the configured local frontend URL (`http://localhost:4200`), requests to port 4730 cross origins. Cross-origin detail loading was tested successfully against an isolated instance of Bookmonkey API 3.3.0 using data held in memory. A separate real-API check verified that an existing ID returns HTTP 200 and an unknown ID returns HTTP 404. These checks establish behavior for that version and setup, not ongoing API availability or production configuration.
+The API URL is hard-coded in [BookApiClient](./src/app/books/book-api-client.service.ts). No environment-specific endpoint configuration, development proxy, or authentication is configured. The HTTP interceptor reports failures without changing the endpoint or adding authentication. When served from the configured local frontend URL (`http://localhost:4200`), requests to port 4730 cross origins. Cross-origin detail loading was tested successfully against an isolated instance of Bookmonkey API 3.3.0 using data held in memory. A separate real-API check verified that an existing ID returns HTTP 200 and an unknown ID returns HTTP 404. These checks establish behavior for that version and setup, not ongoing API availability or production configuration.
 
 Architectural implication: deployment beyond the workshop environment requires an API address reachable from the user's browser; `localhost` in the current code refers to that user's machine. The existing repository provides a browser build configuration, not a configured production API or server deployment.
 
@@ -132,17 +153,23 @@ Architectural implication: deployment beyond the workshop environment requires a
 | `npx playwright test tests/book-details.spec.ts --workers=3 --reporter=line` | Runs only the book-detail scenarios against controlled API responses in all three configured browsers. This was the executed feature-test command.                                                                                                                                           |
 | `npm run format.write`                                                       | Formats supported files under `src`; it does not include root Markdown documentation.                                                                                                                                                                                                        |
 
-The [book-detail tests](./tests/book-details.spec.ts) contain ten scenarios: keyboard navigation from the list and back; direct loading and reload with correct fields and plain-text description; loading state; HTTP 404; server-error retry; network failure; missing additional fields and cover; broken cover; narrow layout with long values; and cancellation when the route ID changes. The final run passed all 30 cases across Chromium, Firefox, and WebKit. These tests mock API responses and do not establish real-API search behavior.
+The [book-detail tests](./tests/book-details.spec.ts) contain ten scenarios: keyboard navigation from the list and back; direct loading and reload with correct fields and plain-text description; loading state; HTTP 404; server-error retry; network failure; missing additional fields and cover; broken cover; narrow layout with long values; and cancellation when the route ID changes. Their 30 cases passed across Chromium, Firefox, and WebKit after the template/state refactor.
+
+The [list tests](./tests/book-list.spec.ts) add fourteen scenarios for initial loading and links, debounce and latest results, immediate request cancellation, clear during debounce/request, cleanup on navigation, failure versus empty results, unchanged-term retry, network recovery, and new input after failure. The [global-error tests](./tests/global-errors.spec.ts) add six scenarios for browser errors, promise rejections, repeated-error deduplication, HTTP failure reporting with local retry, expected 404 handling, and network failure reporting without a global toast.
+
+Run all three application test files together:
+
+```sh
+npx playwright test tests/book-details.spec.ts tests/book-list.spec.ts tests/global-errors.spec.ts --workers=3 --reporter=line
+```
+
+These tests use controlled API responses and do not establish real-API search behavior. Global browser-error events are dispatched by the tests to exercise the application's registered handlers; no application test hooks are added.
 
 The additional [tests-examples](./tests-examples) directory contains an external TodoMVC example and is outside Playwright's configured `testDir`. The external example tests were not part of the targeted feature run. No lint script or CI workflow is present in the inspected repository files.
 
 ## Architectural constraints and extension points
 
-The following list constraints are source-derived implications, not reproduced runtime defects:
-
-- **Concurrent searches:** the debounce clears pending timers but does not cancel in-flight requests or reject stale responses. An older response could replace newer search results. `clearSearch` also does not clear an already pending search timer.
-- **List error presentation:** list-request failures only reach the console; the list has no distinct error state and may retain earlier results. The existing toast utility is not connected to this flow. The detail view has separate error and retry states.
-- **List lifecycle handling:** `BookListComponent` has no destruction hook to clear its timeout or explicitly cancel requests. Details use `AsyncPipe` for subscription cleanup and `switchMap` for route/retry request cancellation.
+The earlier list request-ordering, debounce cleanup, and error-presentation findings have been addressed with the action/state pipeline described above. Remaining boundaries include component-local state, a fixed API URL, and a console-only diagnostic destination.
 
 Additional architecture boundaries:
 
@@ -152,8 +179,9 @@ Additional architecture boundaries:
 ## Verification status
 
 - **Verified by inspection:** component/service boundaries, list/detail routing, providers, state/request code, direct dependency constraints and lockfile resolutions, build/style configuration, and the scope of feature and example tests. Source links above provide the evidence.
-- **Executed during implementation on 2026-11-09:** `npm run build` passed; the targeted Playwright command above passed 30 cases (ten scenarios in three browsers). Prettier checks for the changed source/test files and `git diff --check` passed.
-- **Real API and visual checks during implementation:** an isolated Bookmonkey API 3.3.0 instance returned HTTP 200 for an existing ID and HTTP 404 for an unknown ID. A Chromium smoke check loaded and reloaded a real book through the frontend without JavaScript page errors. Desktop and 375-pixel-wide mobile screenshots were visually inspected; the mobile page had no horizontal overflow. The API instances used in-memory data; persistent storage was not tested.
+- **Current refactoring checks on 2026-11-09:** `npm run build` passed after the final global-handler change. The three-file application regression command above passed all 90 cases (30 scenarios across Chromium, Firefox, and WebKit), including search cancellation/cleanup, list errors and recovery, template/state regressions, global reporting, and notification deduplication. API responses were mocked; browser error/rejection events were dispatched by the tests.
+- **Historical book-details implementation on 2026-11-09:** `npm run build` passed; the targeted Playwright command above passed 30 cases (ten scenarios in three browsers). Prettier checks for the changed source/test files and `git diff --check` passed.
+- **Historical real API and visual checks during book-details implementation (not repeated for refactoring):** an isolated Bookmonkey API 3.3.0 instance returned HTTP 200 for an existing ID and HTTP 404 for an unknown ID. A Chromium smoke check loaded and reloaded a real book through the frontend without JavaScript page errors. Desktop and 375-pixel-wide mobile screenshots were visually inspected; the mobile page had no horizontal overflow. The API instances used in-memory data; persistent storage was not tested.
 - **Not runtime-verified:** real-API search semantics, exhaustive response-schema compatibility, the Karma test command, the full suite including external examples, other API versions, and production hosting. The isolated checks do not establish continued availability of a separately running API.
-- **Inferred:** the list's possible search request-ordering and lifecycle issues described above follow from source control flow; they were not reproduced in a browser. Detail request cancellation was covered by the browser tests.
+- **Historical findings:** the earlier list request-ordering and lifecycle risks were source-derived before refactoring. Current regression checks are recorded separately above.
 - **Unknown from this repository:** the intended production hosting environment and the configuration/persistence of any separately deployed API.

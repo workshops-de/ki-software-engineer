@@ -28,6 +28,8 @@ and [src/app/books/AGENTS.md](./src/app/books/AGENTS.md).
 - `npx playwright test tests/book-details.spec.ts --workers=3 --reporter=line`: targeted book-detail
   browser tests with mocked API responses in Chromium, Firefox, and WebKit. Playwright starts or
   reuses the development server. These tests do not require the real API.
+- For the complete application regression scope, also include `tests/book-list.spec.ts` and
+  `tests/global-errors.spec.ts` in that command. These cover search/recovery and shared error handling.
 - Select tests relevant to the change. The full Playwright suite also includes external-site examples;
   mocked feature tests do not verify real-API compatibility or search semantics.
 - `npm test` invokes the configured Karma builder, but its execution readiness is unverified.

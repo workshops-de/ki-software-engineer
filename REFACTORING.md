@@ -1,13 +1,31 @@
 # Refactoring findings
 
-Source inspection: 2026-11-09. This document records findings and proposed improvements for BookMonkey;
-it does not implement the refactors. Context comes from [ARCHITECTURE.md](./ARCHITECTURE.md), checked
-against the source files linked below. Historical runtime results in that document were not repeated.
+Original findings and implementation review: 2026-11-09. Sections 1-4 retain the findings from the
+pre-refactoring baseline commit `f673fcb`, including the original inferred effects and proposed designs.
+The implementation status below describes the resulting changes on branch `refactoring`.
+Current architecture is documented in [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 `[OK]` identifies inspected facts, `[ANNAHME]` identifies inferred effects or proposed designs, and
 `[OFFEN]` identifies unresolved verification or decisions. Priorities and expected benefits are proposals.
 
-## Suggested order
+## Implementation status
+
+- [OK] List search now uses typed actions, immediate cancellation of superseded work, debounced text
+  changes, immediate clear/retry, and subscription cleanup through `AsyncPipe`.
+- [OK] The list has distinct loading, success/empty, and local error states with retry. Earlier cards
+  are removed when a new operation begins, and failures do not become successful empty results.
+- [OK] List and detail request state use discriminated unions. List, detail, and card templates live
+  in colocated HTML files and use built-in control flow; component/API/card boundaries remain intact.
+- [OK] A root global error handler and HTTP reporting interceptor use the shared
+  [ErrorReporter](./src/app/shared/error-reporter.service.ts). Reporting stays in the browser console;
+  object errors are deduplicated by identity. Only unexpected unhandled failures show a generic toast.
+  Expected request failures retain local feedback, and the interceptor rethrows without automatic retry.
+- [OK] The global handler also deduplicates notifications by error identity, independently of diagnostic
+  deduplication, so reporting the same error again does not replace or restart its toast.
+- [OK] Reporting policy for the workshop: network failures and HTTP 5xx include source, method, endpoint
+  without query parameters, and status; expected HTTP 4xx stay local. No external telemetry is configured.
+
+## Original suggested order
 
 | Priority | Improvement                                      | Reason for ordering                                                     |
 | -------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
@@ -124,9 +142,13 @@ continued local retry behavior, and absence of duplicate notifications for a sin
 
 ## Validation and implementation boundaries
 
-**[OK] Existing coverage:** [tests/book-details.spec.ts](./tests/book-details.spec.ts) contains ten
+**[OK] Baseline coverage:** [tests/book-details.spec.ts](./tests/book-details.spec.ts) contains ten
 book-detail scenarios, including list-to-detail navigation and route-change cancellation, using controlled
 API responses. It does not contain list-search ordering or list-error recovery scenarios.
+
+New list regressions live in [tests/book-list.spec.ts](./tests/book-list.spec.ts), and shared error-handling
+checks live in [tests/global-errors.spec.ts](./tests/global-errors.spec.ts). They cover the original
+acceptance criteria with controlled API responses and browser events.
 
 For implementation, first add focused regression coverage for the behavior being changed, then refactor
 in small steps. Run `npm run build` and the relevant browser tests. The existing detail command is:
@@ -146,8 +168,8 @@ the proposals above.
 
 ## References
 
-The earlier guidance review consulted these official sources; recommendations above remain proposals
-for this repository:
+The guidance and implementation review consulted these official sources. The original proposals above
+are retained for traceability; current behavior is described in the implementation status:
 
 - [Angular: unhandled errors](https://angular.dev/best-practices/error-handling)
 - [Angular: HTTP interceptors](https://angular.dev/guide/http/interceptors)
@@ -155,7 +177,16 @@ for this repository:
 
 ## Verifikationsstatus
 
-- [OK] Current component, API, provider, toast, and browser-test code inspected for this report.
-- [ANNAHME] Runtime impacts, priorities, expected benefits, and refactoring designs are source-derived proposals.
-- [OFFEN] Refactors are not implemented; build, browser tests, failure reproductions, and real-API checks were
-  not executed for this documentation task.
+- [OK] Refactored source inspected and `npm run build` passed after the final handler change.
+- [OK] The application regression command below passed 90 cases: 30 scenarios across Chromium,
+  Firefox, and WebKit (10 detail, 14 list, and 6 global-error scenarios per browser).
+- [OK] Static review identified repeated-error toast duplication; the handler fix and a dedicated
+  browser regression are included in the successful final run.
+- [ANNAHME] The original impact descriptions explain source-derived risks in the baseline; they are not
+  claims that the refactored application exhibits those failures.
+- [OFFEN] Real-API search, the Karma suite, external-site example tests, production hosting, and
+  remote telemetry were not verified in this refactoring task.
+
+```sh
+npx playwright test tests/book-details.spec.ts tests/book-list.spec.ts tests/global-errors.spec.ts --workers=3 --reporter=line
+```

@@ -30,27 +30,26 @@ for the fuller data flow and limitations.
 - Preserve distinct loading, success, HTTP 404, and other request-error states; offer retry for
   request failures. Hide empty additional fields, render `abstract` as plain text, and show a
   placeholder for missing or broken covers. Reset cover failure state for each request.
-- The list currently uses a 300 ms timeout debounce and direct subscriptions. It has no explicit
-  request cancellation, destruction cleanup, or separate error view. Pending timers and stale
-  responses are known source-derived risks, not verified runtime failures. When changing this flow,
-  account for clearing search, rapid input, overlapping requests, and leaving the view.
+- The list uses typed search/clear/retry actions, a 300 ms RxJS delay for text changes, and an outer
+  `switchMap` that immediately cancels superseded delays and requests. `AsyncPipe` owns cleanup.
+  Loading, successful results, and errors are mutually exclusive states; empty results are success.
 - Do not assume list search is persisted in the URL or restored after returning from details.
 
-## Preferred improvements when touching this feature
+## Patterns to preserve when touching this feature
 
-These patterns are recommendations, not descriptions of completed refactors.
+The list and detail request flows use discriminated states and external HTML templates.
 
-- When reworking list search, replace the manual timer and independent requests with one typed
-  search/reload stream. Debounce text changes by 300 ms, suppress repeated search terms, and use
-  `switchMap` for request cancellation. Clear search should cancel pending input and immediately
-  request the unfiltered list; an explicit retry must still work for an unchanged search term.
+- Keep list search in one typed action/state stream. Debounce text changes by 300 ms, suppress
+  repeated search terms, and use `switchMap` before the delay for immediate request cancellation.
+  Clear search must cancel pending input and immediately request the unfiltered list; an explicit
+  retry must still work for an unchanged search term.
 - Keep request error handling inside the switched request so later input and retries still work.
   Represent list failures explicitly rather than showing the successful-empty message or relying
   on console output. Follow the shared error-handling guidance for reporting and notification ownership.
 - When refactoring state, use a discriminated union for mutually exclusive request states and let
   the template select the corresponding view. Keep local cover-failure state separate and reset it
   when loading another book.
-- Prefer colocated external HTML files when changing the large list or detail templates. Keep
+- Keep the colocated external HTML files for the list, details, and card. Keep
   request pipelines, retry decisions, and derived display values in TypeScript; retain the card as
   a presentation component. Preserve existing navigation, text rendering, and accessible feedback.
 
@@ -59,6 +58,10 @@ These patterns are recommendations, not descriptions of completed refactors.
 - Existing browser coverage is in [tests/book-details.spec.ts](../../../tests/book-details.spec.ts).
   When changing feature behavior, extend relevant scenarios there, following its controlled API
   responses and role-based locators. Tests live outside this directory and inherit root guidance.
+- List orchestration and recovery coverage lives in
+  [tests/book-list.spec.ts](../../../tests/book-list.spec.ts); shared reporting coverage lives in
+  [tests/global-errors.spec.ts](../../../tests/global-errors.spec.ts). Run these alongside relevant
+  detail tests when changing shared behavior.
 - Cover navigation/direct reload, loading, not-found, retry/network errors, optional fields,
   cover fallback, narrow layouts with long text, and route-change cancellation when affected.
 - When changing list orchestration, add focused browser coverage for rapid input, clear during a
