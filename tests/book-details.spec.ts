@@ -1,26 +1,6 @@
 import { expect, test, Page } from '@playwright/test';
 import type { Book } from '../src/app/books/book';
-
-const book: Book = {
-  id: 'internal-42',
-  isbn: '9781234567890',
-  userId: 7,
-  title: 'Angular in practice',
-  subtitle: 'A practical guide',
-  author: 'Jane Reader',
-  publisher: 'Example Press',
-  numPages: 250,
-  price: '$29.90',
-  cover: '',
-  abstract: 'Build accessible applications.'
-};
-const api = 'http://localhost:4730/books';
-
-async function setup(page: Page) {
-  await page.route(`${api}*`, route => route.fulfill({ json: [book] }));
-  await page.route(`${api}/${book.isbn}`, route => route.fulfill({ json: book }));
-  await page.goto('http://localhost:4200');
-}
+import { api, book, expectBookRequest, expectListRequest, setup } from './support/books';
 
 async function open(page: Page) {
   await page.getByRole('button', { name: `Details for ${book.title}`, exact: true }).click();
@@ -32,6 +12,7 @@ test('opens with keyboard, loads current details and restores focus', async ({ p
   let release!: () => void;
   const pending = new Promise<void>(resolve => (release = resolve));
   await page.route(`${api}/${book.isbn}`, async route => {
+    expectBookRequest(route);
     await pending;
     await route.fulfill({ json: { ...book, title: 'Current API title' } });
   });
@@ -110,16 +91,24 @@ test('saves full book once, prevents closing and refreshes current search', asyn
   let release!: () => void;
   const pending = new Promise<void>(resolve => (release = resolve));
   await page.route(`${api}*`, route => {
-    searches.push(new URL(route.request().url()).searchParams.get('q'));
-    return route.fulfill({ json: [saved ?? book] });
+    const url = expectListRequest(route);
+    searches.push(url.searchParams.get('q'));
+    const current = saved ?? book;
+    const query = url.searchParams.get('q')?.toLowerCase();
+    const matches = !query || `${current.title} ${current.author}`.toLowerCase().includes(query);
+    return route.fulfill({ json: matches ? [current] : [] });
   });
   await page.route(`${api}/${book.isbn}`, async route => {
+    expectBookRequest(route, ['GET', 'PUT']);
     if (route.request().method() === 'PUT') {
       puts++;
       saved = route.request().postDataJSON();
       await pending;
       await route.fulfill({ json: saved });
-    } else await route.fulfill({ json: book });
+    } else {
+      expectBookRequest(route);
+      await route.fulfill({ json: book });
+    }
   });
   await page.getByRole('textbox', { name: 'Search for books' }).fill('Angular');
   await expect.poll(() => searches).toContain('Angular');
@@ -169,7 +158,10 @@ test('saves full book once, prevents closing and refreshes current search', asyn
 for (const status of [404, 500]) {
   test(`load error ${status} offers retry`, async ({ page }) => {
     await setup(page);
-    await page.route(`${api}/${book.isbn}`, route => route.fulfill({ status, json: {} }));
+    await page.route(`${api}/${book.isbn}`, route => {
+      expectBookRequest(route);
+      return route.fulfill({ status, json: {} });
+    });
     await open(page);
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('alert')).toHaveText(
@@ -177,7 +169,10 @@ for (const status of [404, 500]) {
         ? 'This book could not be found. It may have been removed.'
         : 'Could not load book details. Please try again.'
     );
-    await page.route(`${api}/${book.isbn}`, route => route.fulfill({ json: book }));
+    await page.route(`${api}/${book.isbn}`, route => {
+      expectBookRequest(route);
+      return route.fulfill({ json: book });
+    });
     await dialog.getByRole('button', { name: 'Retry', exact: true }).click();
     await expect(dialog.getByText(book.title, { exact: true })).toBeVisible();
   });
@@ -187,7 +182,8 @@ test('save failure preserves input and allows retry', async ({ page }) => {
   await setup(page);
   let puts = 0;
   await page.route(`${api}/${book.isbn}`, route => {
-    if (route.request().method() !== 'PUT') return route.fulfill({ json: book });
+    expectBookRequest(route, ['GET', 'PUT']);
+    if (route.request().method() === 'GET') return route.fulfill({ json: book });
     puts++;
     return puts === 1
       ? route.fulfill({ status: 500, json: {} })
@@ -211,9 +207,10 @@ test('mobile dialog fits viewport and replaces broken covers', async ({ page }) 
   await page.setViewportSize({ width: 375, height: 667 });
   await page.route('https://example.test/**', route => route.abort());
   await setup(page);
-  await page.route(`${api}/${book.isbn}`, route =>
-    route.fulfill({ json: { ...book, cover: 'https://example.test/missing.png' } })
-  );
+  await page.route(`${api}/${book.isbn}`, route => {
+    expectBookRequest(route);
+    return route.fulfill({ json: { ...book, cover: 'https://example.test/missing.png' } });
+  });
   await open(page);
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('No cover available')).toBeVisible();
@@ -224,4 +221,134 @@ test('mobile dialog fits viewport and replaces broken covers', async ({ page }) 
   await dialog.getByLabel('Description', { exact: true }).fill('Mobile draft');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog.getByText(book.abstract)).toBeVisible();
+});
+
+for (const committed of [false, true]) {
+  test(`a timed out save requires checking the server before editing (committed: ${committed})`, async ({ page }) => {
+    await page.clock.install({ time: new Date('2030-01-01T00:00:00Z') });
+    await setup(page);
+    let serverBook = { ...book };
+    let puts = 0;
+    let gets = 0;
+    const searches: (string | null)[] = [];
+    await page.route(`${api}*`, route => {
+      searches.push(expectListRequest(route).searchParams.get('q'));
+      return route.fulfill({ json: [serverBook] });
+    });
+    await page.route(`${api}/${book.isbn}`, async route => {
+      expectBookRequest(route, ['GET', 'PUT']);
+      if (route.request().method() === 'GET') {
+        gets++;
+        return route.fulfill({ json: serverBook });
+      }
+      puts++;
+      if (committed) serverBook = route.request().postDataJSON();
+      // Simulate a connection that never confirms whether the server saved.
+      // The request is canceled by the client timeout or browser teardown.
+    });
+    await open(page);
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Edit', exact: true }).click();
+    await dialog.getByLabel('Title', { exact: true }).fill('Unconfirmed draft');
+    await page.clock.pauseAt(new Date('2030-01-01T01:00:00Z'));
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect.poll(() => puts).toBe(1);
+    await page.clock.runFor(14999);
+    await expect(dialog.getByText('Saving changes...')).toBeVisible();
+    await page.clock.runFor(1);
+    await expect(dialog.getByRole('alert')).toContainText('The save result is unknown.');
+    await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Unconfirmed draft');
+    await expect(dialog.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Reload saved version', exact: true }).click();
+    await page.clock.resume();
+    await expect(dialog.getByText(serverBook.title, { exact: true })).toBeVisible();
+    expect(gets).toBe(2);
+    expect(puts).toBe(1);
+    await dialog.getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(dialog.getByLabel('Title', { exact: true })).toBeEnabled();
+    await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue(serverBook.title);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect.poll(() => searches).toEqual([null]);
+    await expect(page.getByRole('heading', { name: serverBook.title, exact: true })).toBeVisible();
+    await expect(page.getByText('Book updated successfully.', { exact: true })).toHaveCount(0);
+  });
+}
+
+test('a stalled detail load becomes a retryable error', async ({ page }) => {
+  await page.clock.install({ time: new Date('2030-01-01T00:00:00Z') });
+  await setup(page);
+  await page.route(`${api}/${book.isbn}`, route => {
+    expectBookRequest(route);
+  });
+  await open(page);
+  const dialog = page.getByRole('dialog');
+  await page.clock.pauseAt(new Date('2030-01-01T00:00:10Z'));
+  await page.clock.runFor(15000);
+  await expect(dialog.getByRole('alert')).toContainText('Could not load book details.');
+  await page.route(`${api}/${book.isbn}`, route => {
+    expectBookRequest(route);
+    return route.fulfill({ json: book });
+  });
+  await dialog.getByRole('button', { name: 'Retry', exact: true }).click();
+  await page.clock.resume();
+  await expect(dialog.getByText(book.title, { exact: true })).toBeVisible();
+});
+
+test('removes a saved book that no longer matches the current search', async ({ page }) => {
+  await setup(page);
+  let serverBook = { ...book };
+  const searches: (string | null)[] = [];
+  await page.route(`${api}*`, route => {
+    const query = expectListRequest(route).searchParams.get('q');
+    searches.push(query);
+    const matches = !query || `${serverBook.title} ${serverBook.author}`.toLowerCase().includes(query.toLowerCase());
+    return route.fulfill({ json: matches ? [serverBook] : [] });
+  });
+  await page.route(`${api}/${book.isbn}`, route => {
+    expectBookRequest(route, ['GET', 'PUT']);
+    if (route.request().method() === 'PUT') serverBook = route.request().postDataJSON();
+    return route.fulfill({ json: serverBook });
+  });
+  await page.getByRole('textbox', { name: 'Search for books' }).fill('Angular');
+  await expect.poll(() => searches).toEqual(['Angular']);
+  await open(page);
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Edit', exact: true }).click();
+  await dialog.getByLabel('Title', { exact: true }).fill('RxJS in practice');
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText('No books match your search', { exact: true })).toBeVisible();
+  expect(searches).toEqual(['Angular', 'Angular']);
+  expect(serverBook).toEqual({ ...book, title: 'RxJS in practice' });
+});
+
+test('a lost save connection allows closing and refreshes an unconfirmed server change', async ({ page }) => {
+  await setup(page);
+  let serverBook = { ...book };
+  let puts = 0;
+  await page.route(`${api}*`, route => {
+    expectListRequest(route);
+    return route.fulfill({ json: [serverBook] });
+  });
+  await page.route(`${api}/${book.isbn}`, route => {
+    expectBookRequest(route, ['GET', 'PUT']);
+    if (route.request().method() === 'GET') return route.fulfill({ json: serverBook });
+    puts++;
+    serverBook = route.request().postDataJSON();
+    return route.abort('connectionreset');
+  });
+  await open(page);
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Edit', exact: true }).click();
+  await dialog.getByLabel('Title', { exact: true }).fill('Saved without confirmation');
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('The save result is unknown.');
+  await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue(serverBook.title);
+  await expect(dialog.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: serverBook.title, exact: true })).toBeVisible();
+  await expect(page.getByText('Book updated successfully.', { exact: true })).toHaveCount(0);
+  expect(puts).toBe(1);
 });

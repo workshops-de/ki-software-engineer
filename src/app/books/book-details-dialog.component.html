@@ -54,7 +54,7 @@
         <p class="whitespace-pre-wrap break-words">{{ book.abstract || 'No description available.' }}</p>
       </div>
     </div>
-  } @else {
+  } @else if (state === 'editing' || state === 'saving' || state === 'uncertain') {
     <form
       id="book-edit-form"
       [formGroup]="form"
@@ -107,6 +107,9 @@
     <button mat-button type="button" mat-dialog-close>Close</button>
     @if (state === 'viewing') {
       <button mat-flat-button type="button" (click)="edit()">Edit</button>
+    }
+    @if (state === 'uncertain') {
+      <button mat-flat-button type="button" (click)="load()">Reload saved version</button>
     }
   }
 </mat-dialog-actions>

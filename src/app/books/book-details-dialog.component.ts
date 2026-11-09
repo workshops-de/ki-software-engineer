@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { timeout, TimeoutError } from 'rxjs';
 import { Book } from './book';
 import { BookApiClient } from './book-api-client.service';
 
@@ -34,12 +35,14 @@ import { BookApiClient } from './book-api-client.service';
 export class BookDetailsDialogComponent implements OnInit {
   private readonly api = inject(BookApiClient);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly requestTimeoutMs = 15_000;
   readonly dialogRef = inject(MatDialogRef<BookDetailsDialogComponent, Book>);
   readonly data = inject<{ isbn: string }>(MAT_DIALOG_DATA);
-  state: 'loading' | 'viewing' | 'editing' | 'saving' | 'error' = 'loading';
+  state: 'loading' | 'viewing' | 'editing' | 'saving' | 'uncertain' | 'error' = 'loading';
   book?: Book;
   loadError = '';
   saveError = '';
+  saveUnconfirmed = false;
   coverFailed = false;
 
   readonly form = new FormGroup({
@@ -63,9 +66,10 @@ export class BookDetailsDialogComponent implements OnInit {
   load(): void {
     this.state = 'loading';
     this.loadError = '';
+    this.saveError = '';
     this.api
       .getBook(this.data.isbn)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(timeout(this.requestTimeoutMs), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: book => {
           this.book = book;
@@ -83,7 +87,8 @@ export class BookDetailsDialogComponent implements OnInit {
   }
 
   edit(): void {
-    if (!this.book) return;
+    if (this.state !== 'viewing' || !this.book) return;
+    this.form.enable();
     this.form.reset({ ...this.book, subtitle: this.book.subtitle ?? '' });
     this.saveError = '';
     this.state = 'editing';
@@ -108,12 +113,19 @@ export class BookDetailsDialogComponent implements OnInit {
     this.form.disable();
     this.api
       .updateBook(this.data.isbn, updated)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(timeout(this.requestTimeoutMs), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: book => this.dialogRef.close(book),
-        error: () => {
-          this.state = 'editing';
+        error: (error: unknown) => {
           this.dialogRef.disableClose = false;
+          if (error instanceof TimeoutError || (error instanceof HttpErrorResponse && error.status === 0)) {
+            this.saveUnconfirmed = true;
+            this.state = 'uncertain';
+            this.saveError =
+              'The save result is unknown. Your draft is shown below. Reload the saved version before editing again; this discards the draft. The server may still be processing the save.';
+            return;
+          }
+          this.state = 'editing';
           this.form.enable();
           this.saveError = 'Could not save your changes. Please try again.';
         }

@@ -138,28 +138,35 @@ export class BookListComponent implements OnInit {
   }
 
   onSearchChange(): void {
-    // Debounce search to avoid too many API calls while typing
     clearTimeout(this.searchTimeout);
+    // Invalidate the previous search immediately, including its in-flight response.
+    this.listRequest?.unsubscribe();
+    this.loading = true;
+    this.loadError = false;
     this.searchTimeout = setTimeout(() => {
       this.loadBooks();
     }, 300);
   }
 
   openDetails(book: Book): void {
-    this.dialog
-      .open<BookDetailsDialogComponent, { isbn: string }, Book>(BookDetailsDialogComponent, {
-        data: { isbn: book.isbn },
-        width: '720px',
-        maxWidth: '95vw',
-        maxHeight: '90dvh',
-        autoFocus: 'first-heading',
-        restoreFocus: true
-      })
+    const dialogRef = this.dialog.open<BookDetailsDialogComponent, { isbn: string }, Book>(BookDetailsDialogComponent, {
+      data: { isbn: book.isbn },
+      width: '720px',
+      maxWidth: '95vw',
+      maxHeight: '90dvh',
+      autoFocus: 'first-heading',
+      restoreFocus: true
+    });
+    const details = dialogRef.componentInstance;
+    dialogRef
       .afterClosed()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(saved => {
         if (saved) {
           this.toast.show('Book updated successfully.');
+        }
+        if (saved || details.saveUnconfirmed) {
+          // An interrupted save may have reached the server without a confirmation.
           this.loadBooks();
         }
       });

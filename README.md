@@ -34,12 +34,16 @@ See the [Bookmonkey API documentation](https://www.npmjs.com/package/bookmonkey-
 ```sh
 npm run build
 npx playwright install
-npx playwright test tests/book-details.spec.ts
+npx playwright test tests/book-details.spec.ts tests/book-search.spec.ts
 ```
 
 The Playwright suite starts Angular and mocks API responses; no running API is needed.
 It covers keyboard access, details, draft cancellation, validation, saving and search
 refresh, load/save failures, and a mobile viewport with a broken cover.
+Search checks cover debouncing, stale responses, clearing, empty results, and retry.
+Detail requests time out after 15 seconds. An unconfirmed save keeps the draft visible
+and allows closing; reload the saved version before editing again. Reloading discards
+the draft. Closing after an unconfirmed save refreshes the list without claiming success.
 
 The local API was unreachable during implementation. When it is available, verify
 the live contract using a disposable book: GET by ISBN returns a complete `Book`,
