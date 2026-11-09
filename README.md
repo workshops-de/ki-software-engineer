@@ -12,6 +12,10 @@
   <br>
 </p>
 
+## Architecture
+
+Ein Architekturreview mit Aufbau, Datenfluss, Risikobewertungen und priorisierten Empfehlungen findest du in [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 ## Local Development
 
 | Command       | Description                                      |
