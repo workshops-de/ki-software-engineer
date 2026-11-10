@@ -9,7 +9,7 @@ Versions below are the declarations in [package.json](package.json). Exact resol
 | Technology / packages                                    | Declared version          | Role in this application                                                                                                                                                       |
 | -------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Angular core, common, compiler, platform-browser, router | 20.2.1                    | Standalone components, dependency injection, templates, browser bootstrap, routing, and HTTP access through `@angular/common/http`.                                            |
-| Angular forms                                            | 20.2.1                    | Template-driven search input using `FormsModule` and two-way `ngModel` binding.                                                                                                |
+| Angular forms                                            | 20.2.1                    | Template-driven search input using `FormsModule` and `ngModel` value/event binding.                                                                                            |
 | RxJS                                                     | 7.8.0                     | `Observable<Book[]>` for the catalog and `Observable<Book>` for details; route-driven detail state, retries, and request cancellation.                                         |
 | Zone.js                                                  | 0.15.0                    | Zone-based change detection, configured with event coalescing. This app is not configured for zoneless change detection.                                                       |
 | Angular Material / CDK / animations                      | ^20.2.0 / 20.2.0 / 20.2.1 | A shared toast service wraps Material's snack bar; animations are provided globally, and a Sass file customizes snack-bar colors. The catalog UI itself uses Tailwind classes. |
@@ -17,7 +17,8 @@ Versions below are the declarations in [package.json](package.json). Exact resol
 | PostCSS                                                  | 8.5.6                     | CSS processing used by the Tailwind integration.                                                                                                                               |
 | TypeScript                                               | 5.9.2                     | Application language, with strict compiler checks and strict Angular template checking; JavaScript target is ES2022.                                                           |
 | Angular CLI / build / compiler-cli                       | 20.2.0 / 20.2.0 / 20.2.1  | Development server, application build, and Angular compilation.                                                                                                                |
-| Playwright Test                                          | ^1.55.0                   | Browser-test tooling configured for Chromium, Firefox, and WebKit. Includes 25 book-feature tests with intercepted API responses, alongside external-site examples.            |
+| Playwright Test                                          | ^1.55.0                   | Browser tooling for Chromium, Firefox, and WebKit; 27 application tests with intercepted API responses. External-site examples are outside discovery.                          |
+| Karma / Jasmine                                          | ~6.4.0 / ~5.9.0           | Unit tests through the existing Angular Karma builder, with Jasmine types, Chrome launcher, and reporters declared as development dependencies.                                |
 | Prettier                                                 | 3.6.2                     | Formatting configured in `.prettierrc`.                                                                                                                                        |
 | tslib                                                    | 2.3.0                     | Runtime helpers for compiled TypeScript.                                                                                                                                       |
 
@@ -29,12 +30,12 @@ Additional dependencies are declared but are not wired into the current applicat
 
 ## Structure and responsibilities
 
-The application is organized around a single `books` feature and a small shared service. It uses standalone components rather than an application `NgModule`.
+The application is organized around a single `books` feature and shared presentation/diagnostic utilities. It uses standalone components rather than an application `NgModule`.
 
 | Location                                    | Responsibility                                                                                                                                                     |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `src/main.ts`                               | Bootstraps the root `App` with `bootstrapApplication(App, appConfig)`.                                                                                             |
-| `src/app/app.config.ts`                     | Registers global browser error listeners, zone change detection, routes, `HttpClient`, and animations.                                                             |
+| `src/app/app.config.ts`                     | Registers global error listeners, the root error handler, HTTP diagnostics, zone change detection, routes, and animations.                                         |
 | `src/app/app.ts`, `app.html`, `app.css`     | Root shell: BookMonkey header, router outlet, and footer.                                                                                                          |
 | `src/app/app.routes.ts`                     | Maps `/` to `BookListComponent` and `/books/:id` to `BookDetailComponent`; both are imported eagerly. The final wildcard redirects unmatched paths to the catalog. |
 | `src/app/books/book-list.component.ts`      | Owns the catalog intent/state stream and request cancellation; adjacent HTML renders the view.                                                                     |
@@ -45,9 +46,11 @@ The application is organized around a single `books` feature and a small shared 
 | `src/app/shared/toast.service.ts`           | Root-provided wrapper around `MatSnackBar`, with a default three-second duration. It is not called by the catalog or detail flows.                                 |
 | `src/styles.css`, `src/material-theme.scss` | Global Tailwind import and Material snack-bar overrides.                                                                                                           |
 | `public/`                                   | Static asset source copied by the Angular build.                                                                                                                   |
-| `tests/`, `tests-examples/`                 | `tests/` contains book-details coverage and external-site examples; `tests-examples/` is outside Playwright test discovery.                                        |
+| `tests/`, `tests-examples/`                 | Application browser specs and shared `tests/support/` helpers; workshop/external-site examples are preserved outside discovery in `tests-examples/`.               |
 
-The shared `src/app/books/book-cover.component.ts` renders cover images and fallbacks without fetching book data. `src/app/api-base-url.ts` defines the API origin token supplied by the root configuration.
+The feature-local `src/app/books/book-cover.component.ts` renders cover images and fallbacks without fetching book data. The list, detail, and card layouts use adjacent HTML templates. `src/app/api-base-url.ts` defines the API origin token supplied by the root configuration.
+
+`src/app/shared/request-error.component.ts` owns shared alert styling and the optional retry button. Features project their own headings/messages, preserve heading hierarchy, and handle retry events locally. `src/app/shared/error-reporting.ts` supplies a structured console sink, `AppErrorHandler`, and a functional HTTP interceptor registered in `app.config.ts`. The interceptor observes failures without changing their error channel: all HTTP failures except expected 404s report method/status once per failed request, without request URLs, query strings, or response bodies. Unsubscription does not report an error. The root handler reports unexpected runtime failures; `main.ts` reports bootstrap failures before dependency injection is available. There is no external reporting backend or automatic retry policy.
 
 ## Data flow and state
 
@@ -127,24 +130,27 @@ Direct requests to `/books/:id` require the hosting server to serve the SPA entr
 
 [angular.json](angular.json) defines one application, `angular-workshop-modern`, using the `@angular/build:application` builder. The global style entries include both Tailwind CSS and the Material Sass overrides. Production builds enable output hashing and enforce initial-bundle budgets of 500 kB for warnings and 1 MB for errors; individual component styles have 4 kB / 8 kB budgets. Development builds disable optimization and enable source maps.
 
-| Command                                                             | Purpose / current configuration                                                                                                                                                                                                           |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm install`                                                       | Install project dependencies.                                                                                                                                                                                                             |
-| `npm start`                                                         | Run `ng serve` with the development configuration. Start the API separately for catalog data.                                                                                                                                             |
-| `npx bookmonkey-api`                                                | Start the external fake-data API on port 4730.                                                                                                                                                                                            |
-| `npm run build`                                                     | Build the application with the default production configuration.                                                                                                                                                                          |
-| `npm run watch`                                                     | Rebuild on changes using the development configuration.                                                                                                                                                                                   |
-| `npm test`                                                          | Invoke the configured Karma target. The manifest does not declare the Karma/Jasmine packages, `tsconfig.spec.json` references Jasmine types, and there are no application unit specs under `src/`; this is an incomplete unit-test setup. |
-| `npx playwright test`                                               | Run all specs in `tests/` across Chromium, Firefox, and WebKit, including the remaining external-site examples. Playwright starts or reuses the local Angular development server.                                                         |
-| `npx playwright test tests/book-details.spec.ts --project=chromium` | Run the 16 book-feature tests against the local app with intercepted API responses; no external Bookmonkey API is needed.                                                                                                                 |
-| `npx playwright install chromium`                                   | Install the browser required for the focused Chromium tests if it is not already cached.                                                                                                                                                  |
-| `npm run format.write`                                              | Format matching TypeScript, HTML, Markdown, CSS, and JSON files under `src/`. Root-level documentation is outside this script's scope.                                                                                                    |
+| Command                                                             | Purpose / current configuration                                                                                                                 |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm install`                                                       | Install project dependencies.                                                                                                                   |
+| `npm start`                                                         | Run `ng serve` with the development configuration. Start the API separately for catalog data.                                                   |
+| `npx bookmonkey-api`                                                | Start the external fake-data API on port 4730.                                                                                                  |
+| `npm run build`                                                     | Build the application with the default production configuration.                                                                                |
+| `npm run watch`                                                     | Rebuild on changes using the development configuration.                                                                                         |
+| `npm test`                                                          | Run all 13 Jasmine unit tests once in Chrome Headless. Install Chrome or set `CHROME_BIN`. `npm run test:watch` enables interactive watch mode. |
+| `npm run test:e2e`                                                  | Run all application browser tests in Chromium; `npm run test:e2e:all` runs all configured browsers.                                             |
+| `npm run typecheck`                                                 | Type-check application, unit tests, and browser tests/configuration.                                                                            |
+| `npm run format:check`                                              | Check formatting across source, tests, configuration, and documentation.                                                                        |
+| `npx playwright test`                                               | Run application specs under `tests/` in Chromium, Firefox, and WebKit. Starts or reuses the Angular dev server; API responses are intercepted.  |
+| `npx playwright test tests/book-details.spec.ts --project=chromium` | Run the 16 book-feature tests against the local app with intercepted API responses; no external Bookmonkey API is needed.                       |
+| `npx playwright install chromium`                                   | Install the browser required for the focused Chromium tests if it is not already cached.                                                        |
+| `npm run format.write`                                              | Format matching TypeScript, HTML, Markdown, CSS, and JSON files under `src/`. Root-level documentation is outside this script's scope.          |
 
 The larger TodoMVC example in `tests-examples/` is outside Playwright's configured test directory. The 16 tests in `tests/book-details.spec.ts` cover keyboard navigation from the catalog, detail fields and plain-text abstracts, direct visits and refreshes, loading, 404, retry after failure, missing/broken covers and absent subtitles at a mobile viewport, return navigation, cancellation during ID changes, recovery after route errors, and encoding IDs as a single API path segment. API, test cover images, and Google Fonts CSS responses are intercepted. The tests also cover card fallback for absent/broken covers, cover recovery after a catalog reload, and a new detail request reattempting the same previously failed cover URL. The nine tests in `tests/book-catalog.spec.ts` additionally cover debounce timing, search races, clearing during debounce, error recovery, empty results, and navigation cleanup. Run both spec files for the complete application suite.
 
 ## Architectural assessment
 
-The current design is proportionate to a single-feature workshop application. Catalog request races and error presentation have been addressed with a lifecycle-bound stream and focused browser tests. Remaining product risks include deployment configuration and incomplete unit-test tooling. The assessment below includes the resolved catalog findings and remaining recommendations.
+The current design is proportionate to a single-feature workshop application. Catalog request races and error presentation have been addressed with a lifecycle-bound stream and focused browser tests. Unit-test tooling now runs, shared errors have one presentation pattern, and diagnostics have a console destination. Remaining product risks include deployment configuration, unused dependency surface, and the unversioned external API contract. The assessment below includes the resolved findings and remaining recommendations.
 
 ### Boundaries and dependency direction
 
@@ -165,7 +171,7 @@ Ratings assess the consequences of extending this code into a maintained applica
 | Dependency management        | Moderate | Imports are simple and acyclic, but UI and HTTP share the same model. Several unused architectural dependencies increase upgrade and maintenance scope.                       |
 | State management             | Low      | Catalog and detail use lifecycle-bound request state and cancellation. New catalog intent cancels obsolete work before debounce completes.                                    |
 | Feature scalability          | Moderate | Sibling features can reuse the container/presentation convention. Catalog and detail use request-local recovery; deployments must supply the API origin.                      |
-| Testability and verification | Moderate | All 25 focused book tests pass in Chromium, including catalog races and errors. The unit-test scaffold remains incomplete; Firefox and WebKit were not run.                   |
+| Testability and verification | Moderate | 13 unit tests and 27 Chromium application tests pass. Firefox and WebKit remain unverified.                                                                                   |
 | Build and tooling            | Moderate | Conventional Angular tooling and strict compilation limit complexity. Incomplete test configuration, mismatched styles, and unused dependencies indicate configuration drift. |
 
 ### Known failure modes and hidden coupling
@@ -183,9 +189,9 @@ Ratings assess the consequences of extending this code into a maintained applica
 ### Architectural inconsistencies and tooling gaps
 
 - **Inactive architectural options — Moderate risk:** NgRx, its toolkit, TanStack Query, and the SSR/Express packages are declared without corresponding application integration. These may support later workshop exercises, but that intent is inferred. Remove them from a maintained baseline or document the exercise that activates each. Their presence does not indicate multiple active state-management approaches.
-- **Reporting policy remains optional:** catalog and detail errors have inline recovery. The Material toast wrapper is unused; global reporting should be added only with a defined destination and ownership policy, avoiding duplicate notifications.
-- **Test scaffold drift — High risk:** Karma configuration and Jasmine type references are present without the required direct dependencies. Playwright now includes application-specific detail tests; external-site examples remain alongside them. The larger TodoMVC example is outside test discovery.
-- **Style configuration drift — Moderate risk:** the application build includes `src/material-theme.scss`; the unit-test target includes only `src/styles.css`. Material-related visual behavior would not use the same global overrides.
+- **Shared reporting policy:** expected request recovery stays in feature streams; the HTTP interceptor and root error handler use one console diagnostic sink. Expected 404s and cancellations do not create duplicate diagnostics; no automatic error toasts are shown.
+- **Test scaffold repaired:** Karma/Jasmine development dependencies and 13 focused unit tests are present. Application browser specs share mocks/navigation helpers; external-site examples are outside discovery.
+- **Style configuration aligned:** application and unit-test targets both load `src/styles.css` and `src/material-theme.scss`.
 - **Toolchain reproducibility — Moderate risk:** the manifest declares no Node runtime requirement or package-manager version. A lockfile records resolved dependencies, but no repository CI workflow was found to enforce install, compilation, or application checks.
 
 There is little excessive indirection or duplicated application logic today. The strongest over-engineering signal is the unused dependency surface. The list component is a likely future concentration point for behavior, but it is not currently large enough to justify describing it as a god component. A global store, framework-independent domain layer, or micro-frontend split is not justified by the inspected requirements.
@@ -203,16 +209,24 @@ Evidence from the architectural review and subsequent book-details implementatio
 - Prettier checks on the changed implementation/test files and `git diff --check` passed.
 - A real `GET /books/:id` request to the running API returned the requested book with the expected detail fields. Error states and cancellation were verified using intercepted responses, not real backend failures.
 
-The external API implementation and broader version compatibility were not inspected. The broken unit-test scaffold remains unchanged. These results record the feature implementation checks; editing this architecture document does not constitute a new build or browser test run.
+The external API implementation and broader version compatibility were not inspected. The unit-test scaffold was incomplete at that stage; the project-wide verification below records its repair. These earlier results describe the original feature implementation.
 
 ### Evolution priorities
 
 1. **Preserve request orchestration guarantees.** The catalog now has lifecycle-bound cancellation and dedicated race, debounce, and recovery coverage. Keep these tests when extending pagination or search.
-2. **Complete test tooling.** Retain the focused catalog/detail browser tests, restore an executable unit-test setup, and isolate unrelated external-site examples. Align test and application styles.
+2. **Extend browser verification deliberately.** The unit scaffold and application-only browser discovery now work. Run Firefox/WebKit before claiming coverage for those engines and keep helpers focused on application behavior.
 3. **Complete deployment setup.** Supply the injected API origin for the deployment and pin the supported development API version.
 4. **Reduce inactive options and establish conventions.** Retain only required dependencies, record the default server-state/error approach for new features, and define cross-feature import rules when a second feature is introduced.
 
-The folder structure can support three similarly sized features and more parallel contributors without a structural rewrite. Team size and ownership practices are unknown, so this is a conditional assessment. Entropy may accumulate first in feature containers, competing state-library choices, shared business logic, and root provider configuration. Deployment configuration and incomplete unit-test tooling remain constraints to address.
+The folder structure can support three similarly sized features and more parallel contributors without a structural rewrite. Team size and ownership practices are unknown, so this is a conditional assessment. Entropy may accumulate first in feature containers, competing state-library choices, shared business logic, and root provider configuration. Deployment configuration and API-contract ownership remain constraints to address.
+
+### Project-wide refactoring and verification (2026-11-10)
+
+The shared error view, central console diagnostics, external card template, browser-test helpers, and working unit-test setup extend the earlier feature refactoring across the project. The default browser suite now contains only application tests; both external-site workshop examples live in `tests-examples/`. `npm test` runs Jasmine/Karma once in Chrome Headless; `npm run test:watch` retains interactive watch mode. Chrome must be installed or supplied through `CHROME_BIN`. Application and unit-test builds use the same global style entries. `tsconfig.spec.json` discovers unit specs; `tsconfig.e2e.json` checks browser tests and Playwright configuration. `npm run typecheck` checks all three TypeScript projects.
+
+Verified: 13 unit tests passed in Chrome Headless, 27 application tests passed in Chromium, all TypeScript projects passed, and the production build passed with Google Fonts access (383.80 kB initial bundle). Browser execution required permission outside the restricted sandbox. Firefox and WebKit were not run. The unit tests cover alternate API configuration, URL/parameter contracts, unchanged error propagation, reporting without duplicate 404/cancellation noise, cover input reset, and projected error headings/retry actions. Browser integration additionally verifies the shell wildcard route and the configured interceptor's single diagnostic with successful local recovery.
+
+The error-handling boundaries follow the [Angular 20 error guidance](https://v20.angular.dev/best-practices/error-handling) and [functional interceptor guidance](https://v20.angular.dev/guide/http/interceptors). The existing [Angular 20 Karma/Jasmine test setup](https://v20.angular.dev/guide/testing) was repaired without changing application frameworks.
 
 ### Feature refactoring verification (2026-11-09)
 

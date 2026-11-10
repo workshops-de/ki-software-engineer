@@ -1,0 +1,11 @@
+# Maintained by npm; preserve its native serialization.
+package-lock.json
+
+# Generated output and dependencies.
+node_modules/
+dist/
+.angular/
+coverage/
+test-results/
+playwright-report/
+blob-report/

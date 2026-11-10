@@ -6,13 +6,14 @@ import { catchError, distinctUntilChanged, map, Observable, of, startWith, Subje
 import { Book } from './book';
 import { BookApiClient } from './book-api-client.service';
 import { BookCoverComponent } from './book-cover.component';
+import { RequestErrorComponent } from '../shared/request-error.component';
 
 type BookDetailState = { status: 'loading' | 'not-found' | 'error' } | { status: 'success'; book: Book };
 
 @Component({
   selector: 'app-book-detail',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, BookCoverComponent],
+  imports: [AsyncPipe, RouterLink, BookCoverComponent, RequestErrorComponent],
   templateUrl: './book-detail.component.html'
 })
 export class BookDetailComponent {

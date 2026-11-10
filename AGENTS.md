@@ -29,6 +29,11 @@ Run commands from the repository root:
 
 - `npm install`: install dependencies.
 - `npm start`: serve the SPA at `http://localhost:4200`.
+- `npm test`: run Jasmine unit tests once in Chrome Headless; install Chrome or set `CHROME_BIN` to a compatible binary.
+- `npm run test:watch`: run unit tests interactively in watch mode.
+- `npm run test:e2e`: run all application browser tests in Chromium. `npm run test:e2e:all` uses all configured browsers.
+- `npm run typecheck`: check application, unit-test, and browser-test TypeScript.
+- `npm run format:check`: check project source, test, configuration, and documentation formatting.
 - `npx bookmonkey-api`: separately start the development API at `http://localhost:4730` for manual testing.
 - `npm run build`: validate the production Angular build. Google Fonts inlining can require network access.
 - `node node_modules/typescript/bin/tsc --project tsconfig.app.json --noEmit`: check application TypeScript;
@@ -43,6 +48,7 @@ Run commands from the repository root:
 Choose checks appropriate to the change. For application behavior changes, run the build and relevant browser tests,
 and extend focused regression coverage when behavior changes. Documentation-only edits need formatting and link review.
 
-`npm test` currently targets an incomplete Karma/Jasmine setup, with missing dependencies/types and no application
-unit specs. The full Playwright suite also includes external-site examples; prefer relevant application specs for
-focused verification. Report these limitations when they affect validation instead of treating the commands as passing.
+Application unit specs live next to their source files. Shared browser mocks and navigation helpers live under
+`tests/support/`. External-site workshop examples live in `tests-examples/`, outside default test discovery.
+Keep unit-test styles aligned with application styles. Report missing browser binaries or environment restrictions
+when they affect validation rather than treating commands as passing.

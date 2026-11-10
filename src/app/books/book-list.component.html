@@ -40,17 +40,10 @@
         </div>
       }
       @case ('error') {
-        <div role="alert" class="rounded-lg bg-gray-50 p-8">
+        <app-request-error [retryable]="true" (retry)="retry()">
           <h2 class="text-2xl font-bold text-gray-800">Unable to load books</h2>
           <p class="mt-3 text-gray-600">Please try again.</p>
-          <button
-            type="button"
-            (click)="retry()"
-            class="mt-6 rounded-md bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
-          >
-            Retry
-          </button>
-        </div>
+        </app-request-error>
       }
       @case ('success') {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-8">

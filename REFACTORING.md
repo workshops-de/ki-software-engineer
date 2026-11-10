@@ -30,12 +30,30 @@ Subsequently applied the catalog request refactoring:
 - Added nine browser tests covering debounce timing, obsolete request cancellation and late responses, clearing via button
   and input during debounce, initial/search failure recovery, retry, empty results, and destruction-time cancellation.
 
-Unit-test tooling remains follow-up work.
-Global diagnostics remain conditional on an actual reporting requirement; recoverable detail errors remain local.
-No global store, reporting backend, or automatic HTTP retry policy was introduced.
+### Project-wide follow-through (2026-11-10)
 
-Validation: all 25 focused Chromium tests passed (nine catalog and 16 detail/card tests). The production build passed after network access was allowed for
-Google Fonts inlining. Firefox and WebKit were not run. The original source line anchors below are historical.
+- Extracted the remaining book-card layout to adjacent HTML. Small cover and error presentation components retain
+  concise inline templates. Removed the unused root-shell title field; constructors still have no operational effects.
+- Added a shared `RequestErrorComponent` for alert layout and retry controls across catalog, detail failure, and detail
+  not-found views. Features project their own semantic headings/messages and own recovery behavior.
+- Added a functional HTTP interceptor, root `AppErrorHandler`, and a shared structured console sink, also used for
+  bootstrap failures. HTTP failures other than expected 404s are reported once per failed request with method/status;
+  URLs, query strings, and response payloads are omitted. Original errors still reach local recovery unchanged.
+  Cancellation does not create a diagnostic. No automatic retries or duplicate toast notifications were added.
+- Consolidated repeated browser mocks, API/app addresses, and same-component navigation helpers in `tests/support/`.
+  Moved the external-site example to `tests-examples/` and simplified the Playwright configuration.
+- Restored the existing Angular Karma/Jasmine setup with the missing development dependencies, aligned global styles,
+  and added 13 focused unit tests for the API contract, error reporting, cover reset, and retry presentation.
+- Added explicit unit/browser test scripts, strict type checking for all three TypeScript projects, and a project-wide
+  formatting check. Existing unused architectural dependencies remain available for workshop exercises; removing them
+  or migrating frameworks is outside this refactoring.
+
+No global store or external reporting backend was introduced. The console is the diagnostic destination.
+
+Validation on 2026-11-10: all 13 unit tests passed in Chrome Headless; all 27 application browser tests passed in Chromium
+(nine catalog, 16 detail/card, and two shell/integration tests). Application, unit-test, and browser-test type checks passed.
+The production build passed with Google Fonts access and an initial bundle of 383.80 kB. Browser processes required
+execution outside the restricted sandbox. Firefox and WebKit were not run. The original source line anchors below are historical.
 
 ## Scope and assessment
 

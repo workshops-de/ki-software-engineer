@@ -1,8 +1,7 @@
 import { expect, Page, Response, test } from '@playwright/test';
 import { Book } from '../src/app/books/book';
+import { apiUrl, appUrl, mockBookApp, navigateToBook } from './support/book-app';
 
-const appUrl = 'http://localhost:4200';
-const apiUrl = 'http://localhost:4730/books';
 const book: Book = {
   id: 'catalog-book',
   title: 'Catalog Book',
@@ -16,11 +15,7 @@ const book: Book = {
   userId: 1
 };
 
-test.beforeEach(async ({ page }) => {
-  await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ body: '', contentType: 'text/css' }));
-  await page.route(`${apiUrl}?*`, route => route.fulfill({ json: [book] }));
-  await page.route(`${apiUrl}/*`, route => route.fulfill({ json: book }));
-});
+test.beforeEach(async ({ page }) => mockBookApp(page, book));
 
 async function openCatalog(page: Page) {
   await page.goto(appUrl);
@@ -31,10 +26,7 @@ async function openCatalog(page: Page) {
 
 async function navigateToDetails(page: Page) {
   const response = page.waitForResponse(`${apiUrl}/${book.id}`);
-  await page.evaluate(id => {
-    history.pushState(null, '', `/books/${id}`);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, book.id);
+  await navigateToBook(page, book.id);
   await page.clock.runFor(32);
   await renderResponse(page, response);
   await expect(page.getByRole('heading', { name: book.title, exact: true })).toBeVisible();

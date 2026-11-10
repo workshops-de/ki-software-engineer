@@ -23,6 +23,23 @@ See [the architecture summary](ARCHITECTURE.md) for the technology stack, depend
 | `npm install` | Installs the packages to develop the Angular app |
 | `npm start`   | Starts the Angular app                           |
 
+## Validation
+
+| Command                | Purpose                                                              |
+| ---------------------- | -------------------------------------------------------------------- |
+| `npm test`             | Run unit tests once in Chrome Headless                               |
+| `npm run test:watch`   | Run unit tests in watch mode                                         |
+| `npm run test:e2e`     | Run all application browser tests in Chromium                        |
+| `npm run test:e2e:all` | Run browser tests in Chromium, Firefox, and WebKit                   |
+| `npm run typecheck`    | Check application and test TypeScript                                |
+| `npm run format:check` | Check source, test, configuration, and documentation formatting      |
+| `npm run build`        | Build for production (Google Fonts inlining requires network access) |
+
+Unit tests require Chrome; set `CHROME_BIN` if it is not automatically detected. Install Playwright's Chromium with
+`npx playwright install chromium`, or all configured browsers with `npx playwright install`.
+Application browser tests mock the API and do not need a running Bookmonkey API. External-site workshop examples
+are preserved in `tests-examples/` and are excluded from the default suite.
+
 ## The API
 
 | Command              | Description                                       |

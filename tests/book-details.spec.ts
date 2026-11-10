@@ -1,8 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 import { Book } from '../src/app/books/book';
+import { apiUrl, appUrl, mockBookApp, navigateToBook } from './support/book-app';
 
-const appUrl = 'http://localhost:4200';
-const apiUrl = 'http://localhost:4730/books';
 const book: Book = {
   id: 'book-1',
   title: 'A Journey Through Angular',
@@ -17,17 +16,7 @@ const book: Book = {
   userId: 987654321
 };
 
-test.beforeEach(async ({ page }) => {
-  await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ body: '', contentType: 'text/css' }));
-  await page.route('https://covers.example.test/**', route =>
-    route.fulfill({
-      contentType: 'image/svg+xml',
-      body: '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400"><rect width="300" height="400" fill="#dbeafe"/></svg>'
-    })
-  );
-  await page.route(`${apiUrl}?*`, route => route.fulfill({ json: [book] }));
-  await page.route(`${apiUrl}/*`, route => route.fulfill({ json: book }));
-});
+test.beforeEach(async ({ page }) => mockBookApp(page, book));
 
 async function expectDetails(page: Page) {
   await expect(page.getByRole('heading', { name: book.title, exact: true })).toBeVisible();
@@ -146,14 +135,6 @@ for (const cover of ['', 'https://covers.example.test/broken.png']) {
     await expect(page.getByRole('img')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
-}
-
-// Simulate same-document history navigation so the router reuses the details component.
-async function navigateToBook(page: Page, id: string) {
-  await page.evaluate(id => {
-    history.pushState(null, '', `/books/${encodeURIComponent(id)}`);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, id);
 }
 
 test('a failed cover is attempted again for a new book with the same URL', async ({ page }) => {

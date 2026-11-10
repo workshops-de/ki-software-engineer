@@ -11,6 +11,10 @@ See [ARCHITECTURE.md](../ARCHITECTURE.md) for the full application structure and
   for genuinely reusable concerns, such as the existing `ToastService`, rather than book-specific behavior.
 - Keep HTTP transport in injectable API services and view state/orchestration in feature containers. Presentational
   components should render inputs and expose interactions without fetching their own data.
+- Use `RequestErrorComponent` for shared alert and retry presentation, preserving feature-specific heading levels and
+  recovery decisions through projected content and events. Central error reporting in `shared/error-reporting.ts` logs
+  HTTP diagnostics without transforming errors or retrying. Expected 404s remain local; unexpected runtime and bootstrap
+  failures use the same console sink. Do not add duplicate toast notifications to inline request failures.
 - The app uses Angular 20, RxJS, and Zone.js with event coalescing. Do not assume zoneless change detection, SSR,
   NgRx stores, or TanStack Query are configured merely because related dependencies are installed.
 
@@ -18,8 +22,8 @@ See [ARCHITECTURE.md](../ARCHITECTURE.md) for the full application structure and
 
 - Preserve strict TypeScript and Angular template checks. Use explicit model and state types; avoid introducing `any`
   or disabling compiler checks to work around errors.
-- Follow the local component style and import standalone template dependencies explicitly. Existing templates mix
-  structural directives and built-in control flow; avoid unrelated syntax migrations.
+- Import standalone template dependencies explicitly. Application templates use built-in control flow. Keep substantial
+  layouts in adjacent HTML files; small, cohesive presentation components can keep inline templates.
 - Bind asynchronous request flows to component lifetime, using `AsyncPipe` where appropriate. When newer user intent
   supersedes a request, cancel obsolete work and keep error handling recoverable for later requests.
 - Use Tailwind utilities for application layouts. `styles.css` imports Tailwind; `material-theme.scss` contains global

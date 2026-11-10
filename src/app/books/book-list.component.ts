@@ -5,6 +5,7 @@ import { BehaviorSubject, catchError, map, Observable, of, startWith, switchMap,
 import { Book } from './book';
 import { BookApiClient } from './book-api-client.service';
 import { BookItemComponent } from './book-item.component';
+import { RequestErrorComponent } from '../shared/request-error.component';
 
 type CatalogIntent = { term: string; debounce: boolean };
 type CatalogState = { status: 'loading' | 'error' } | { status: 'success'; books: Book[] };
@@ -12,7 +13,7 @@ type CatalogState = { status: 'loading' | 'error' } | { status: 'success'; books
 @Component({
   selector: 'app-book-list',
   standalone: true,
-  imports: [AsyncPipe, FormsModule, BookItemComponent],
+  imports: [AsyncPipe, FormsModule, BookItemComponent, RequestErrorComponent],
   templateUrl: './book-list.component.html'
 })
 export class BookListComponent {
