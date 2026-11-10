@@ -10,14 +10,14 @@ Versions below are the declarations in [package.json](package.json). Exact resol
 | -------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Angular core, common, compiler, platform-browser, router | 20.2.1                    | Standalone components, dependency injection, templates, browser bootstrap, routing, and HTTP access through `@angular/common/http`.                                            |
 | Angular forms                                            | 20.2.1                    | Template-driven search input using `FormsModule` and `ngModel` value/event binding.                                                                                            |
-| RxJS                                                     | 7.8.0                     | `Observable<Book[]>` for the catalog and `Observable<Book>` for details; route-driven detail state, retries, and request cancellation.                                         |
+| RxJS                                                     | 7.8.0                     | `Observable<BookPage>` for the catalog and `Observable<Book>` for details; route-driven detail state, retries, and request cancellation.                                       |
 | Zone.js                                                  | 0.15.0                    | Zone-based change detection, configured with event coalescing. This app is not configured for zoneless change detection.                                                       |
 | Angular Material / CDK / animations                      | ^20.2.0 / 20.2.0 / 20.2.1 | A shared toast service wraps Material's snack bar; animations are provided globally, and a Sass file customizes snack-bar colors. The catalog UI itself uses Tailwind classes. |
 | Tailwind CSS / its PostCSS plugin                        | 4.1.12                    | Utility styling and responsive layouts; loaded through `src/styles.css` and `.postcssrc.json`.                                                                                 |
 | PostCSS                                                  | 8.5.6                     | CSS processing used by the Tailwind integration.                                                                                                                               |
 | TypeScript                                               | 5.9.2                     | Application language, with strict compiler checks and strict Angular template checking; JavaScript target is ES2022.                                                           |
 | Angular CLI / build / compiler-cli                       | 20.2.0 / 20.2.0 / 20.2.1  | Development server, application build, and Angular compilation.                                                                                                                |
-| Playwright Test                                          | ^1.55.0                   | Browser tooling for Chromium, Firefox, and WebKit; 36 application tests with intercepted API responses. External-site examples are outside discovery.                          |
+| Playwright Test                                          | ^1.55.0                   | Browser tooling for Chromium, Firefox, and WebKit; 50 application tests with intercepted API responses. External-site examples are outside discovery.                          |
 | Karma / Jasmine                                          | ~6.4.0 / ~5.9.0           | Unit tests through the existing Angular Karma builder, with Jasmine types, Chrome launcher, and reporters declared as development dependencies.                                |
 | Prettier                                                 | 3.6.2                     | Formatting configured in `.prettierrc`.                                                                                                                                        |
 | tslib                                                    | 2.3.0                     | Runtime helpers for compiled TypeScript.                                                                                                                                       |
@@ -40,10 +40,10 @@ The application is organized around the `books` feature, a small `settings` page
 | `src/app/app.routes.ts`                                             | Maps `/` to `BookListComponent`, `/books/:id` to `BookDetailComponent`, and `/settings` to `SettingsComponent`; all are imported eagerly. The final wildcard redirects unmatched paths to the catalog. |
 | `src/app/settings/settings.component.ts`, `settings.component.html` | Settings page with the existing theme picker and a link back to the catalog.                                                                                                                           |
 | `src/app/shared/theme.service.ts`                                   | Root-provided theme preference and persistence, initialized by the shell independently of the routed page.                                                                                             |
-| `src/app/books/book-list.component.ts`                              | Owns the catalog intent/state stream and request cancellation; adjacent HTML renders the view.                                                                                                         |
+| `src/app/books/book-list.component.ts`                              | Owns catalog page/search intent, request cancellation, and pagination state; adjacent HTML renders the view.                                                                                           |
 | `src/app/books/book-item.component.ts`                              | Displays one book supplied through an `@Input()`: cover or fallback, title link to details, optional subtitle, author, and ISBN.                                                                       |
 | `src/app/books/book-detail.component.ts`                            | Owns route-driven detail loading, retry and error states, request state; its adjacent HTML template renders the responsive view.                                                                       |
-| `src/app/books/book-api-client.service.ts`                          | Root-provided HTTP adapter with `getBooks()` for catalog queries and `getBook(id)` for individual books; encodes the ID as a URL path segment.                                                         |
+| `src/app/books/book-api-client.service.ts`                          | Root-provided HTTP adapter with `getBooksPage()` for paged queries, `getBooks()` for arrays, and `getBook(id)` for details; encodes the ID as a URL path segment.                                      |
 | `src/app/books/book.ts`                                             | TypeScript `Book` interface shared by the service and components.                                                                                                                                      |
 | `src/app/shared/toast.service.ts`                                   | Root-provided wrapper around `MatSnackBar`, with a default three-second duration. It is not called by the catalog or detail flows.                                                                     |
 | `src/styles.css`, `src/material-theme.scss`                         | Global Tailwind import and Material snack-bar overrides.                                                                                                                                               |
@@ -75,8 +75,10 @@ flowchart TD
       Detail --> Cover
       Detail -->|"getBook(id); retry"| Client
       Client -->|"Observable<Book>"| Detail
-      List -->|getBooks: limit and search term| Client["BookApiClient"]
-      Client -->|"Observable<Book[]>"| List
+      List -->|getBooksPage: limit, search term, page| Client["BookApiClient"]
+      Client -->|"Observable<BookPage>"| List
+      Selection["BookCatalogSelection — page and search in memory"] -->|initial selection| List
+      List -->|updates intent| Selection
       Model["Book interface"] -.->|types| List
       Model -.->|types| Item
       Model -.->|types| Detail
@@ -90,7 +92,7 @@ flowchart TD
     end
   end
 
-  HTTP -->|"GET /books?_limit=10 (optional q)"| API["External Bookmonkey API — localhost:4730"]
+  HTTP -->|"GET /books?_limit=10 (optional _page and q)"| API["External Bookmonkey API — localhost:4730"]
   HTTP -->|"GET /books/:id"| API
   API -->|"JSON book array or single book"| HTTP
 ```
@@ -99,11 +101,14 @@ Solid arrows show bootstrap, rendering, service calls, and data flow; dotted arr
 
 ### Catalog
 
-1. `BookListComponent` seeds a `BehaviorSubject<CatalogIntent>` with an immediate initial load. Its single `AsyncPipe` subscription starts the request using the `pageSize` input, which defaults to 10.
-2. `BookApiClient.getBooks()` sends `GET /books` with `_limit` and, when a search term is supplied, `q`. The API handles filtering; the browser does not filter a previously downloaded catalog.
-3. The container emits typed loading, success (with books), or error state. `book-list.component.html` renders the state with built-in control flow and tracks cards by book ID. New intent immediately replaces old results with loading, including during debounce, so stale results are never displayed under a new query.
-4. Search uses `ngModel` to update the intent subject. An outer `switchMap` immediately cancels the previous debounce or request. Nonempty input waits 300 ms using an RxJS timer before calling the API; unchanged input is ignored. Clearing through the button or deleting all text loads immediately and cancels any pending timer. The search term is derived from the current intent rather than stored separately.
-5. HTTP errors become a visible alert with manual Retry, distinct from successful empty results. Request-local `catchError` keeps later searches and retries working. Retry repeats the current term immediately. `AsyncPipe` unsubscribes on destruction, canceling pending timers and HTTP work. There are no imperative component subscriptions or constructor effects.
+1. `BookListComponent` seeds a `BehaviorSubject<CatalogIntent>` with the page and search term from `BookCatalogSelection` and an immediate load. Its single `AsyncPipe` subscription starts the request using the `pageSize` input, which defaults to 10. The application offers no page-size selector.
+2. `BookApiClient.getBooksPage()` sends `GET /books` with `_limit`, optional `q`, and `_page` for pages after the first. It returns a `BookPage` containing the response array and the total from the exposed `X-Total-Count` header. Missing or invalid totals fall back to the response length, so full pagination requires the API header. The original `getBooks()` remains an array-returning wrapper with the same first-page URL contract. Filtering and paging happen on the API.
+3. The container emits typed loading, success (with books, current page, and page numbers), or error state. `book-list.component.html` renders the state with built-in control flow and tracks cards by book ID. New intent immediately replaces old results with loading, including during debounce, so stale results are never displayed under a new query.
+4. Search uses `ngModel` to update the intent subject and resets the page to one. An outer `switchMap` immediately cancels the previous debounce or request. Nonempty input waits 300 ms using an RxJS timer before calling the API; unchanged input is ignored. Clearing through the button or deleting all text loads page one immediately and cancels any pending timer. Every intent updates the in-memory selection for return navigation.
+5. HTTP errors become a visible alert with manual Retry, distinct from successful empty results. Request-local `catchError` keeps later searches and retries working. Retry repeats the same page and term immediately. `AsyncPipe` unsubscribes on destruction, canceling pending timers and HTTP work. There are no imperative component subscriptions or constructor effects.
+6. Successful results with more than one page expose numbered buttons, Previous, and Next. `aria-current="page"` identifies the selected page; Previous and Next are disabled at their respective boundaries. Page changes load immediately and retain the search term. Empty and single-page results hide navigation. Native buttons, visible focus outlines, wrapping layout, and shared theme tokens support keyboard use and narrow displays in both themes.
+
+`src/app/books/book-catalog-selection.service.ts` holds only the selected page and search term in a root-provided `BookCatalogSelection` instance. It preserves catalog intent across routed views during one SPA visit; it does not cache responses or use persistent storage or URL parameters. A full reload creates the default unfiltered page-one selection.
 
 ### Book details
 
@@ -113,13 +118,13 @@ Solid arrows show bootstrap, rendering, service calls, and data flow; dotted arr
 4. `state$` emits a typed `BookDetailState`: `loading`, `success` with the book, `not-found` for HTTP 404, or `error` for other failures. Every request starts with `loading`, removing previously displayed details. `catchError` is inside the request stream, so errors do not prevent subsequent retries or route changes.
 5. The template subscribes once through `AsyncPipe`, which unsubscribes on component destruction and thereby cancels active HTTP work. `@if` and `@switch` render the states. Loading uses `role="status"`; error states use `role="alert"`. Other failures offer a Retry button, while 404 displays “Book not found”.
 6. A feature-local `BookCoverComponent` owns image-load failure state for both cards and details. It resets on input changes; the detail loading branch destroys the old cover view between requests. Missing or broken covers show a fallback. The detail template lives in `book-detail.component.html`, while its container owns route and retry orchestration. The page displays title, optional subtitle, author, ISBN, publisher, page count, price, and abstract. It preserves the API price string and uses a `textContent` binding plus `whitespace-pre-wrap` for plain-text abstracts with paragraph breaks. It does not display `userId`.
-7. “Back to books” links to `/` in every state, including on direct visits. The catalog is loaded anew on return; its previous search is not persisted. The detail layout adapts from a single column to cover and text columns on wider screens.
+7. “Back to books” links to `/` in every state, including on direct visits. The catalog fetches the retained page and search anew on return; a full reload clears that in-memory selection. The detail layout adapts from a single column to cover and text columns on wider screens.
 
 ### Shared model and state boundaries
 
 The `Book` model contains identity, ISBN, title/subtitle, author, publisher, page count, price, cover URL, abstract, and user ID. It is a compile-time interface; the HTTP response is not validated at runtime. Cover URLs come from the API and are bound directly to image elements.
 
-There is no global state store, request cache, authentication, or book write operation in the current implementation. The limit controls result count rather than implementing page navigation. Both catalog and detail flows use cancellation and explicit request state; view destruction ends their subscriptions and pending work.
+There is no global state store, request cache, authentication, or book write operation in the current implementation. Catalog selection is a small feature-specific service containing only page and search intent. The limit controls page size; `_page` selects subsequent result pages. Both catalog and detail flows use cancellation and explicit request state; view destruction ends their subscriptions and pending work.
 
 ### Application theme
 
@@ -128,6 +133,12 @@ The shell links to `/settings` through a keyboard-accessible settings icon with 
 Verified on 2026-11-10: production build, all three TypeScript projects, 13 unit tests in Chrome Headless, and all 34 application tests in Chromium passed. Seven theme regressions cover light/dark system defaults and live changes, explicit overrides, navigation/reload persistence, returning to System, dark catalog/detail/error presentation, invalid saved values, and keyboard operation on a mobile viewport with unavailable storage. Firefox and WebKit were not run. The refactoring review retained the cohesive picker component and shared color tokens without further changes.
 
 For [GitHub issue #1](https://github.com/rheckelck/ki-software-engineer/issues/1), verification on 2026-11-10 passed the production build (387.74 kB initial bundle), all three TypeScript projects, 13 unit tests in Chrome Headless, and all 36 application tests in Chromium. Settings coverage verifies the header icon link, keyboard navigation from the catalog, access from book details, direct visits and refresh without book API requests, restored themes on direct book reload, and retained selection after recreating the picker with unavailable storage. The refactoring review confirmed the separation of theme lifetime from the settings view; no further changes were needed. Firefox and WebKit were not run.
+
+### Paging verification (2026-11-10)
+
+For [GitHub issue #2](https://github.com/rheckelck/ki-software-engineer/issues/2), the unchanged Red-phase tests first reproduced four Jasmine and nine Chromium failures. After implementation, all 20 Jasmine tests and all 50 Chromium application tests passed, including all seven unit and 14 UI paging scenarios. These cover initial results, page numbers and boundaries, empty/single-page navigation, search resets, return navigation and reload, obsolete request cancellation, retrying the same page/query, and mobile keyboard operation with light/dark contrast checks. Typechecks and the production build passed (390.48 kB initial bundle). SHA-256 comparison confirmed all 24 protected test/configuration files, including unversioned Red-phase specs, remained unchanged. Firefox and WebKit were not run.
+
+The cached Bookmonkey API 3.3.0 uses JSON Server 0.17.4 paging: `_page` selects one-based pages, `_limit` sets their size, `q` filters before slicing, and the exposed `X-Total-Count` header supplies the filtered total. This contract was checked against its source and, during the Red phase, with a temporary API database. The API remains an external, unpinned workshop dependency.
 
 ## Backend and runtime boundaries
 

@@ -9,8 +9,9 @@ Read the catalog and book-details flows in [ARCHITECTURE.md](../../../ARCHITECTU
   `BookDetailComponent` owns route-driven detail state. Keep HTTP calls in `BookApiClient` and shared book fields in
   the `Book` interface.
 - `API_BASE_URL` is provided in `app.config.ts`, defaulting to `http://localhost:4730`; the API client appends `/books`.
-  Catalog requests use `_limit` (default 10) and optional `q`
-  for server-side search. Preserve these parameters when changing request handling.
+  Catalog requests use `_limit` (default 10), optional `q` for server-side search, and `_page` after page one.
+  `getBooksPage()` reads the exposed `X-Total-Count` header for navigation; `getBooks()` retains its array-returning
+  first-page contract. Preserve these parameters when changing request handling.
 - Fetch details independently through `getBook(id)`, encoding the ID as one URL path segment with `encodeURIComponent`.
   Direct visits and refreshes must work without previously loading the catalog.
 - The routes are `/` for the catalog and `/books/:id` for details, with an application wildcard redirect to the catalog.
@@ -31,8 +32,9 @@ Read the catalog and book-details flows in [ARCHITECTURE.md](../../../ARCHITECTU
   HTTP request immediately. Nonempty input waits 300 ms; initial load, clear (including deleting all text), and retry
   load immediately. Preserve explicit loading/success/error states and request-local error recovery. Cover typing,
   clearing during debounce, obsolete responses, recovery after failure, and navigation cleanup when changing this flow.
-- Returning to the catalog currently reloads it without retaining the previous search. Treat search persistence as a
-  deliberate behavior change rather than assuming a cache exists.
+- `BookCatalogSelection` retains only page and search in memory across route navigation. Returning from details
+  fetches that selection anew; a full reload starts unfiltered on page one. Do not persist it in storage or the URL.
+  New/cleared searches reset the page; retry preserves page and term. Hide navigation for zero or one result page.
 
 ## Regression coverage
 

@@ -5,10 +5,13 @@ import { BehaviorSubject, catchError, map, Observable, of, startWith, switchMap,
 import { Book } from './book';
 import { BookApiClient } from './book-api-client.service';
 import { BookItemComponent } from './book-item.component';
+import { BookCatalogSelection } from './book-catalog-selection.service';
 import { RequestErrorComponent } from '../shared/request-error.component';
 
-type CatalogIntent = { term: string; debounce: boolean };
-type CatalogState = { status: 'loading' | 'error' } | { status: 'success'; books: Book[] };
+type CatalogIntent = { term: string; page: number; debounce: boolean };
+type CatalogState =
+  | { status: 'loading' | 'error' }
+  | { status: 'success'; books: Book[]; page: number; pages: number[] };
 
 @Component({
   selector: 'app-book-list',
@@ -20,15 +23,26 @@ export class BookListComponent {
   @Input() pageSize = 10;
 
   private readonly bookApiClient = inject(BookApiClient);
-  private readonly requests = new BehaviorSubject<CatalogIntent>({ term: '', debounce: false });
+  private readonly catalogSelection = inject(BookCatalogSelection);
+  private readonly requests = new BehaviorSubject<CatalogIntent>({
+    ...this.catalogSelection.selection,
+    debounce: false
+  });
 
   // AsyncPipe owns the subscription. New intent cancels both debounce and HTTP work immediately.
   readonly state$: Observable<CatalogState> = this.requests.pipe(
-    switchMap(({ term, debounce }) =>
+    switchMap(({ term, page, debounce }) =>
       (debounce ? timer(300) : of(0)).pipe(
         switchMap(() =>
-          this.bookApiClient.getBooks(this.pageSize, term).pipe(
-            map((books): CatalogState => ({ status: 'success', books })),
+          this.bookApiClient.getBooksPage(this.pageSize, term, page).pipe(
+            map(
+              ({ books, total }): CatalogState => ({
+                status: 'success',
+                books,
+                page,
+                pages: Array.from({ length: Math.ceil(total / this.pageSize) }, (_, index) => index + 1)
+              })
+            ),
             catchError(() => of<CatalogState>({ status: 'error' }))
           )
         ),
@@ -43,15 +57,25 @@ export class BookListComponent {
 
   onSearchChange(term: string): void {
     if (term !== this.searchTerm) {
-      this.requests.next({ term, debounce: term.length > 0 });
+      this.request({ term, page: 1, debounce: term.length > 0 });
     }
   }
 
   clearSearch(): void {
-    this.requests.next({ term: '', debounce: false });
+    this.request({ term: '', page: 1, debounce: false });
   }
 
   retry(): void {
-    this.requests.next({ term: this.searchTerm, debounce: false });
+    this.request({ ...this.requests.value, debounce: false });
+  }
+
+  goToPage(page: number, pageCount: number): void {
+    if (!Number.isInteger(page) || page < 1 || page > pageCount || page === this.requests.value.page) return;
+    this.request({ term: this.searchTerm, page, debounce: false });
+  }
+
+  private request(intent: CatalogIntent): void {
+    this.catalogSelection.selection = { term: intent.term, page: intent.page };
+    this.requests.next(intent);
   }
 }
