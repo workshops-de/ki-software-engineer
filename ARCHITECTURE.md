@@ -17,7 +17,7 @@ Versions below are the declarations in [package.json](package.json). Exact resol
 | PostCSS                                                  | 8.5.6                     | CSS processing used by the Tailwind integration.                                                                                                                               |
 | TypeScript                                               | 5.9.2                     | Application language, with strict compiler checks and strict Angular template checking; JavaScript target is ES2022.                                                           |
 | Angular CLI / build / compiler-cli                       | 20.2.0 / 20.2.0 / 20.2.1  | Development server, application build, and Angular compilation.                                                                                                                |
-| Playwright Test                                          | ^1.55.0                   | Browser tooling for Chromium, Firefox, and WebKit; 34 application tests with intercepted API responses. External-site examples are outside discovery.                          |
+| Playwright Test                                          | ^1.55.0                   | Browser tooling for Chromium, Firefox, and WebKit; 36 application tests with intercepted API responses. External-site examples are outside discovery.                          |
 | Karma / Jasmine                                          | ~6.4.0 / ~5.9.0           | Unit tests through the existing Angular Karma builder, with Jasmine types, Chrome launcher, and reporters declared as development dependencies.                                |
 | Prettier                                                 | 3.6.2                     | Formatting configured in `.prettierrc`.                                                                                                                                        |
 | tslib                                                    | 2.3.0                     | Runtime helpers for compiled TypeScript.                                                                                                                                       |
@@ -30,23 +30,25 @@ Additional dependencies are declared but are not wired into the current applicat
 
 ## Structure and responsibilities
 
-The application is organized around a single `books` feature and shared presentation/diagnostic utilities. It uses standalone components rather than an application `NgModule`.
+The application is organized around the `books` feature, a small `settings` page, and shared presentation/diagnostic utilities. It uses standalone components rather than an application `NgModule`.
 
-| Location                                    | Responsibility                                                                                                                                                     |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/main.ts`                               | Bootstraps the root `App` with `bootstrapApplication(App, appConfig)`.                                                                                             |
-| `src/app/app.config.ts`                     | Registers global error listeners, the root error handler, HTTP diagnostics, zone change detection, routes, and animations.                                         |
-| `src/app/app.ts`, `app.html`, `app.css`     | Root shell: BookMonkey header, router outlet, and footer.                                                                                                          |
-| `src/app/app.routes.ts`                     | Maps `/` to `BookListComponent` and `/books/:id` to `BookDetailComponent`; both are imported eagerly. The final wildcard redirects unmatched paths to the catalog. |
-| `src/app/books/book-list.component.ts`      | Owns the catalog intent/state stream and request cancellation; adjacent HTML renders the view.                                                                     |
-| `src/app/books/book-item.component.ts`      | Displays one book supplied through an `@Input()`: cover or fallback, title link to details, optional subtitle, author, and ISBN.                                   |
-| `src/app/books/book-detail.component.ts`    | Owns route-driven detail loading, retry and error states, request state; its adjacent HTML template renders the responsive view.                                   |
-| `src/app/books/book-api-client.service.ts`  | Root-provided HTTP adapter with `getBooks()` for catalog queries and `getBook(id)` for individual books; encodes the ID as a URL path segment.                     |
-| `src/app/books/book.ts`                     | TypeScript `Book` interface shared by the service and components.                                                                                                  |
-| `src/app/shared/toast.service.ts`           | Root-provided wrapper around `MatSnackBar`, with a default three-second duration. It is not called by the catalog or detail flows.                                 |
-| `src/styles.css`, `src/material-theme.scss` | Global Tailwind import and Material snack-bar overrides.                                                                                                           |
-| `public/`                                   | Static asset source copied by the Angular build.                                                                                                                   |
-| `tests/`, `tests-examples/`                 | Application browser specs and shared `tests/support/` helpers; workshop/external-site examples are preserved outside discovery in `tests-examples/`.               |
+| Location                                                            | Responsibility                                                                                                                                                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/main.ts`                                                       | Bootstraps the root `App` with `bootstrapApplication(App, appConfig)`.                                                                                                                                 |
+| `src/app/app.config.ts`                                             | Registers global error listeners, the root error handler, HTTP diagnostics, zone change detection, routes, and animations.                                                                             |
+| `src/app/app.ts`, `app.html`, `app.css`                             | Root shell: BookMonkey header with settings icon link, router outlet, footer, and initial theme restoration.                                                                                           |
+| `src/app/app.routes.ts`                                             | Maps `/` to `BookListComponent`, `/books/:id` to `BookDetailComponent`, and `/settings` to `SettingsComponent`; all are imported eagerly. The final wildcard redirects unmatched paths to the catalog. |
+| `src/app/settings/settings.component.ts`, `settings.component.html` | Settings page with the existing theme picker and a link back to the catalog.                                                                                                                           |
+| `src/app/shared/theme.service.ts`                                   | Root-provided theme preference and persistence, initialized by the shell independently of the routed page.                                                                                             |
+| `src/app/books/book-list.component.ts`                              | Owns the catalog intent/state stream and request cancellation; adjacent HTML renders the view.                                                                                                         |
+| `src/app/books/book-item.component.ts`                              | Displays one book supplied through an `@Input()`: cover or fallback, title link to details, optional subtitle, author, and ISBN.                                                                       |
+| `src/app/books/book-detail.component.ts`                            | Owns route-driven detail loading, retry and error states, request state; its adjacent HTML template renders the responsive view.                                                                       |
+| `src/app/books/book-api-client.service.ts`                          | Root-provided HTTP adapter with `getBooks()` for catalog queries and `getBook(id)` for individual books; encodes the ID as a URL path segment.                                                         |
+| `src/app/books/book.ts`                                             | TypeScript `Book` interface shared by the service and components.                                                                                                                                      |
+| `src/app/shared/toast.service.ts`                                   | Root-provided wrapper around `MatSnackBar`, with a default three-second duration. It is not called by the catalog or detail flows.                                                                     |
+| `src/styles.css`, `src/material-theme.scss`                         | Global Tailwind import and Material snack-bar overrides.                                                                                                                                               |
+| `public/`                                                           | Static asset source copied by the Angular build.                                                                                                                                                       |
+| `tests/`, `tests-examples/`                                         | Application browser specs and shared `tests/support/` helpers; workshop/external-site examples are preserved outside discovery in `tests-examples/`.                                                   |
 
 The feature-local `src/app/books/book-cover.component.ts` renders cover images and fallbacks without fetching book data. The list, detail, and card layouts use adjacent HTML templates. `src/app/api-base-url.ts` defines the API origin token supplied by the root configuration.
 
@@ -62,6 +64,9 @@ flowchart TD
     App -->|router outlet| Router["Router — app.routes.ts"]
     Router -->|empty path; fallback redirects here| List["BookListComponent — intent stream, state$, AsyncPipe"]
     Router -->|"books/:id"| Detail["BookDetailComponent — state$ and AsyncPipe"]
+    Router -->|"settings"| Settings["SettingsComponent — theme picker"]
+    App -->|initializes| Theme["ThemeService — preference, localStorage, document theme"]
+    Settings -->|theme selection| Theme
 
     subgraph books["books feature"]
       List -->|book input per card| Item["BookItemComponent"]
@@ -118,9 +123,11 @@ There is no global state store, request cache, authentication, or book write ope
 
 ### Application theme
 
-The shell renders `shared/theme-picker.component.ts`, a labeled native select offering System, Light, and Dark. Its local signal owns the preference, which defaults to System. The component restores valid preferences from the `bookmonkey-theme` localStorage key and persists explicit selections; unavailable storage leaves selection usable for the current visit. Invalid saved values fall back to System. The component sets `data-theme` on the document root. `styles.css` uses `color-scheme` and shared Tailwind color tokens based on `light-dark()` for the shell, catalog, detail, loading, empty, and error views. System mode follows operating-system color changes directly through CSS, without JavaScript media-query listeners. Material snack-bar overrides reuse the same tokens. Theme persistence is independent of book request state and does not retain catalog searches.
+The shell links to `/settings` through a keyboard-accessible settings icon with an accessible name. The settings page renders `shared/theme-picker.component.ts`, a labeled native select offering System, Light, and Dark, and provides a link back to the catalog. It does not fetch book data. `shared/theme.service.ts` owns the preference signal, which defaults to System; the shell initializes this root-provided service on every entry route, including direct book visits. The service restores valid preferences from the `bookmonkey-theme` localStorage key and persists explicit selections; unavailable storage leaves selection usable for the current visit, including navigation away from and back to settings. Invalid saved values fall back to System. The service sets `data-theme` on the document root. `styles.css` uses `color-scheme` and shared Tailwind color tokens based on `light-dark()` for the shell, settings, catalog, detail, loading, empty, and error views. System mode follows operating-system color changes directly through CSS, without JavaScript media-query listeners. Material snack-bar overrides reuse the same tokens. Theme persistence is independent of book request state and does not retain catalog searches.
 
 Verified on 2026-11-10: production build, all three TypeScript projects, 13 unit tests in Chrome Headless, and all 34 application tests in Chromium passed. Seven theme regressions cover light/dark system defaults and live changes, explicit overrides, navigation/reload persistence, returning to System, dark catalog/detail/error presentation, invalid saved values, and keyboard operation on a mobile viewport with unavailable storage. Firefox and WebKit were not run. The refactoring review retained the cohesive picker component and shared color tokens without further changes.
+
+For [GitHub issue #1](https://github.com/rheckelck/ki-software-engineer/issues/1), verification on 2026-11-10 passed the production build (387.74 kB initial bundle), all three TypeScript projects, 13 unit tests in Chrome Headless, and all 36 application tests in Chromium. Settings coverage verifies the header icon link, keyboard navigation from the catalog, access from book details, direct visits and refresh without book API requests, restored themes on direct book reload, and retained selection after recreating the picker with unavailable storage. The refactoring review confirmed the separation of theme lifetime from the settings view; no further changes were needed. Firefox and WebKit were not run.
 
 ## Backend and runtime boundaries
 
@@ -128,7 +135,7 @@ The frontend's API origin is supplied through the `API_BASE_URL` injection token
 
 During local development the Angular server normally runs at `http://localhost:4200`. Browser requests go directly to the API on port 4730, so the API must permit that cross-origin access. Deploying the frontend elsewhere requires changing the API configuration: `localhost` refers to the machine running the browser.
 
-Direct requests to `/books/:id` require the hosting server to serve the SPA entry point. The Angular development server supports this; production hosting must configure the same fallback.
+Direct requests to `/books/:id` and `/settings` require the hosting server to serve the SPA entry point. The Angular development server supports this; production hosting must configure the same fallback.
 
 `src/index.html` also loads Roboto and Material Icons stylesheets from Google Fonts. Book covers may introduce further external image requests according to the URLs returned by the API. The production build also fetches Google Fonts for inlining and therefore needs network access unless those resources are cached.
 
@@ -165,7 +172,7 @@ The current design is proportionate to a single-feature workshop application. Ca
 - Dependency direction is shell/router → feature container → API client → Angular HTTP, with the container also depending on the card component. No circular dependencies were found in the inspected application imports.
 - Angular dependency injection makes services replaceable in tests, although the list depends on the concrete `BookApiClient` rather than a domain-facing interface. That coupling is acceptable at the current scale; additional repository interfaces need a concrete justification.
 - Feature boundaries are directory conventions. No architectural lint rules or package boundaries enforce them. With only one feature, cross-feature isolation has not yet been demonstrated.
-- Both root-provided services are currently stateless adapters. Their singleton lifetime does not imply a global mutable application store.
+- The book API client and toast service remain stateless adapters. The root-provided theme service holds only the application appearance preference across routed page lifetimes; it is independent of book request state.
 
 ### Risk profile
 

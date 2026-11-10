@@ -25,6 +25,38 @@ test('unknown paths return to the catalog inside the application shell', async (
   await expect(page.getByRole('link', { name: book.title, exact: true })).toBeVisible();
 });
 
+test('the header settings icon opens the settings page by keyboard from catalog and details', async ({ page }) => {
+  await page.goto('/');
+  const header = page.getByRole('banner');
+  const settingsLink = header.getByRole('link', { name: 'Settings', exact: true });
+  await expect(page.getByRole('combobox', { name: 'Theme' })).toHaveCount(0);
+  await expect(settingsLink).toHaveAttribute('href', '/settings');
+  await expect(settingsLink.locator('svg')).toBeVisible();
+  await settingsLink.focus();
+  await settingsLink.press('Enter');
+  await expect(page).toHaveURL(`${appUrl}/settings`);
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expect(header.getByRole('combobox')).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Theme' })).toBeVisible();
+  await page.getByRole('link', { name: 'Back to books' }).click();
+  await page.getByRole('link', { name: book.title, exact: true }).click();
+  await settingsLink.click();
+  await expect(page).toHaveURL(`${appUrl}/settings`);
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+});
+
+test('settings support direct visits and refresh without requesting book data', async ({ page }) => {
+  const bookRequests: string[] = [];
+  page.on('request', request => {
+    if (request.url().startsWith(apiUrl)) bookRequests.push(request.url());
+  });
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: 'Theme' })).toHaveValue('system');
+  expect(bookRequests).toEqual([]);
+});
+
 test('the configured interceptor reports once while the catalog retains recovery', async ({ page }) => {
   const diagnostics: string[] = [];
   page.on('console', message => {
@@ -49,7 +81,7 @@ test('the configured interceptor reports once while the catalog retains recovery
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`theme defaults to the ${colorScheme} system setting and follows changes`, async ({ page }) => {
     await page.emulateMedia({ colorScheme });
-    await page.goto('/');
+    await page.goto('/settings');
     await expect(page.getByRole('combobox', { name: 'Theme' })).toHaveValue('system');
     await expect(page.locator('body')).toHaveCSS(
       'background-color',
@@ -66,22 +98,25 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const opposite = colorScheme === 'dark' ? 'light' : 'dark';
     const background = colorScheme === 'dark' ? 'rgb(17, 24, 39)' : 'rgb(255, 255, 255)';
     await page.emulateMedia({ colorScheme: opposite });
-    await page.goto('/');
+    await page.goto('/settings');
     const picker = page.getByRole('combobox', { name: 'Theme' });
     await picker.selectOption(colorScheme);
     await expect(page.locator('body')).toHaveCSS('background-color', background);
     await page.emulateMedia({ colorScheme });
     await page.emulateMedia({ colorScheme: opposite });
     await expect(page.locator('body')).toHaveCSS('background-color', background);
+    await page.getByRole('link', { name: 'Back to books' }).click();
     await page.getByRole('link', { name: book.title, exact: true }).click();
     await expect(page.getByRole('article')).toBeVisible();
     await page.reload();
-    await expect(picker).toHaveValue(colorScheme);
+    await expect(picker).toHaveCount(0);
     await expect(page.locator('body')).toHaveCSS('background-color', background);
     await expect(page.getByRole('article')).toHaveCSS(
       'background-color',
       colorScheme === 'dark' ? 'rgb(31, 41, 55)' : 'rgb(255, 255, 255)'
     );
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
+    await expect(picker).toHaveValue(colorScheme);
     await picker.selectOption('system');
     await page.reload();
     await expect(picker).toHaveValue('system');
@@ -110,7 +145,7 @@ test('dark theme applies to catalog cards, cover fallback, search, and errors', 
 test('invalid saved themes fall back to the system setting', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('bookmonkey-theme', 'invalid-theme'));
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.goto('/');
+  await page.goto('/settings');
   await expect(page.getByRole('combobox', { name: 'Theme' })).toHaveValue('system');
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(17, 24, 39)');
 });
@@ -125,7 +160,7 @@ test('theme remains usable by keyboard on mobile when storage is unavailable', a
   });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.goto('/');
+  await page.goto('/settings');
   const picker = page.getByRole('combobox', { name: 'Theme' });
   await expect(picker).toHaveValue('system');
   await picker.focus();
@@ -134,5 +169,10 @@ test('theme remains usable by keyboard on mobile when storage is unavailable', a
   await picker.press('Enter');
   await expect(picker).toHaveValue('dark');
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(17, 24, 39)');
+  await page.getByRole('link', { name: 'Back to books' }).click();
+  await expect(page.getByRole('link', { name: book.title, exact: true })).toBeVisible();
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(17, 24, 39)');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(picker).toHaveValue('dark');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

@@ -1,0 +1,5 @@
+interface:
+  display_name: 'BookMonkey-Feature definieren'
+  short_description: 'Feature interviewen und als GitHub-Issue ausarbeiten'
+policy:
+  allow_implicit_invocation: true
