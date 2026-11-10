@@ -5,7 +5,8 @@ Diese Datei gilt für `src/app/books/` und seine Unterverzeichnisse. Sie ergänz
 ## Zuständigkeiten und API-Vertrag
 
 - `BookApiClient` kapselt fachliche HTTP-Aufrufe. Die aktuell fest eingetragene Basisadresse lautet `http://localhost:4730/books`; Änderungen am Deployment müssen diese Konfiguration berücksichtigen.
-- `BookListComponent` steuert Suche, Lade-/Fehlerzustand, Dialogöffnung und Aktualisierung nach dem Speichern. `BookItemComponent` stellt ein übergebenes `Book` dar und meldet Aktionen über Outputs; sie lädt keine Daten selbst.
+- `BookListComponent` steuert Suche, Lade-/Fehlerzustand und Listenaktualisierung. `BookDialogService` öffnet den Detaildialog für Liste und Würfel-Button und meldet nötige Aktualisierungen nach bestätigtem oder unbestätigtem Speichern. `BookItemComponent` stellt ein übergebenes `Book` dar und meldet Aktionen über Outputs; sie lädt keine Daten selbst.
+- `BookRandomButtonComponent` bindet den Würfelablauf in den Header ein; `BookRandomDialogComponent` lädt mit `getAllBooks()` die gesamte Sammlung ohne `_limit` oder `q`, zeigt wechselnde Cover auf den sechs Würfelseiten statt Augen und wählt gleichverteilt aus. Die aktuelle Suche begrenzt die Auswahl nicht. Schließen beendet Abruf und Animation; reduzierte Bewegung unterdrückt Würfelrotation und Coverwechsel.
 - `BookDetailsDialogComponent` lädt das aktuelle Buch anhand der übergebenen ISBN und verwaltet Anzeige, Bearbeitungsentwurf und Speichervorgang. Öffne den Dialog nicht mit den Listendaten als vermeintlich aktuellem Detailstand.
 - Listenabrufe verwenden `_limit` und optional `q`. Details und Updates adressieren die URL-kodierte **ISBN**, nicht `id`: `GET /books/:isbn`, `PUT /books/:isbn`.
 - Beim Speichern wird das vollständige Buch übertragen. Bewahre `id`, `userId` und ISBN; `price` bleibt ein String. Der reale API-Vertrag ist laut [README](../../../README.md) noch nicht live verifiziert.

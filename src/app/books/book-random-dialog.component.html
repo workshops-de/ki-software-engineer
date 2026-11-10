@@ -1,0 +1,66 @@
+<h2 mat-dialog-title>Deine nächste Leseidee</h2>
+<mat-dialog-content [attr.aria-busy]="state === 'loading' || state === 'rolling'">
+  <p role="status" aria-live="polite">
+    @switch (state) {
+      @case ('loading') {
+        Die Sammlung wird geladen …
+      }
+      @case ('rolling') {
+        Dein Buch wird ausgewürfelt …
+      }
+      @case ('result') {
+        Deine Leseidee: {{ result?.title }} von {{ result?.author }}
+      }
+      @case ('empty') {
+        Die Sammlung enthält noch keine Bücher.
+      }
+    }
+  </p>
+  @if (state === 'error') {
+    <p role="alert">Die Sammlung konnte nicht geladen werden. Bitte versuche es erneut.</p>
+    <button mat-stroked-button type="button" (click)="load()">Erneut versuchen</button>
+  }
+  @if (state === 'loading' || state === 'rolling') {
+    <div class="dice-stage" aria-hidden="true">
+      <div class="dice">
+        @for (face of faces; track face; let index = $index) {
+          <div [class]="'face ' + face">
+            @if (faceBooks[index]; as book) {
+              @if (coverAvailable(book)) {
+                <img [src]="book.cover" alt="" (error)="coverFailed(book)" />
+              } @else {
+                <span>Kein Cover verfügbar</span>
+              }
+            } @else {
+              <span>Sammlung wird geladen …</span>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+  @if (state === 'result' && result; as book) {
+    <div class="result">
+      <div class="cover bg-gray-100 dark:bg-gray-800">
+        @if (coverAvailable(book)) {
+          <img [src]="book.cover" [alt]="book.title" (error)="coverFailed(book)" />
+        } @else {
+          <span>Kein Cover verfügbar</span>
+        }
+      </div>
+      <h3 class="text-xl font-semibold mt-4">{{ book.title }}</h3>
+      <p>{{ book.author }}</p>
+    </div>
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button type="button" mat-dialog-close>Schließen</button>
+  @if (state === 'rolling' || state === 'result') {
+    <button mat-stroked-button type="button" [disabled]="state === 'rolling'" (click)="roll()">
+      Noch einmal würfeln
+    </button>
+  }
+  @if (state === 'result' && result) {
+    <button mat-flat-button type="button" (click)="dialogRef.close(result.isbn)">Buchdetails öffnen</button>
+  }
+</mat-dialog-actions>

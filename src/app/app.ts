@@ -1,10 +1,11 @@
 import { Component, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { BookRandomButtonComponent } from './books/book-random-button.component';
 import { ThemePreference, ThemeService } from './shared/theme.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, BookRandomButtonComponent],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })

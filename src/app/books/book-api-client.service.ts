@@ -9,6 +9,10 @@ export class BookApiClient {
 
   constructor(private http: HttpClient) {}
 
+  getAllBooks(): Observable<Book[]> {
+    return this.http.get<Book[]>(this.apiUrl);
+  }
+
   getBook(isbn: string): Observable<Book> {
     return this.http.get<Book>(`${this.apiUrl}/${encodeURIComponent(isbn)}`);
   }

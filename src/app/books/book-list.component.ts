@@ -2,14 +2,13 @@ import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, inject, Input, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { Subscription } from 'rxjs';
-import { ToastService } from '../shared/toast.service';
+import { BookDialogService } from './book-dialog.service';
 import { Book } from './book';
 import { BookApiClient } from './book-api-client.service';
 import { BookItemComponent } from './book-item.component';
-import { BookDetailsDialogComponent } from './book-details-dialog.component';
 
 @Component({
   selector: 'app-book-list',
@@ -110,14 +109,14 @@ export class BookListComponent implements OnInit {
   private searchTimeout?: ReturnType<typeof setTimeout>;
   private listRequest?: Subscription;
   private readonly destroyRef = inject(DestroyRef);
-  private readonly dialog = inject(MatDialog);
-  private readonly toast = inject(ToastService);
+  private readonly dialogs = inject(BookDialogService);
 
   constructor(private bookApiClient: BookApiClient) {
     this.destroyRef.onDestroy(() => clearTimeout(this.searchTimeout));
   }
 
   ngOnInit(): void {
+    this.dialogs.changes.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.loadBooks());
     this.loadBooks();
   }
 
@@ -153,27 +152,7 @@ export class BookListComponent implements OnInit {
   }
 
   openDetails(book: Book): void {
-    const dialogRef = this.dialog.open<BookDetailsDialogComponent, { isbn: string }, Book>(BookDetailsDialogComponent, {
-      data: { isbn: book.isbn },
-      width: '720px',
-      maxWidth: '95vw',
-      maxHeight: '90dvh',
-      autoFocus: 'first-heading',
-      restoreFocus: true
-    });
-    const details = dialogRef.componentInstance;
-    dialogRef
-      .afterClosed()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(saved => {
-        if (saved) {
-          this.toast.show('Book updated successfully.');
-        }
-        if (saved || details.saveUnconfirmed) {
-          // An interrupted save may have reached the server without a confirmation.
-          this.loadBooks();
-        }
-      });
+    this.dialogs.openDetails(book.isbn);
   }
 
   clearSearch(): void {

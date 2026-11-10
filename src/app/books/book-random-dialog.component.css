@@ -1,0 +1,89 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+p,
+h3 {
+  overflow-wrap: anywhere;
+}
+.dice-stage {
+  perspective: 500px;
+  height: 240px;
+  display: grid;
+  place-items: center;
+}
+.dice {
+  width: 112px;
+  height: 112px;
+  transform-style: preserve-3d;
+  animation: roll 2s ease-in-out infinite;
+}
+.face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 2px solid #2563eb;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  text-align: center;
+  padding: 4px;
+  overflow: hidden;
+  backface-visibility: hidden;
+}
+.front {
+  transform: translateZ(56px);
+}
+.back {
+  transform: rotateY(180deg) translateZ(56px);
+}
+.right {
+  transform: rotateY(90deg) translateZ(56px);
+}
+.left {
+  transform: rotateY(-90deg) translateZ(56px);
+}
+.top {
+  transform: rotateX(90deg) translateZ(56px);
+}
+.bottom {
+  transform: rotateX(-90deg) translateZ(56px);
+}
+.cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  overflow: hidden;
+  text-align: center;
+}
+.face img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cover {
+  height: 220px;
+  margin-top: 16px;
+}
+img {
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+}
+@keyframes roll {
+  from {
+    transform: rotateX(-20deg) rotateY(25deg) rotateZ(0);
+  }
+  to {
+    transform: rotateX(700deg) rotateY(745deg) rotateZ(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice {
+    animation: none;
+    transform: rotateX(-20deg) rotateY(25deg);
+  }
+}

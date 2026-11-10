@@ -37,6 +37,27 @@ system changes, keyboard access, blocked storage, and mobile surfaces in both th
 
 ## The API
 
+### Random reading idea
+
+The dice button in the header opens a dialog with a two-second 3D dice animation
+with changing book cover previews on all six faces instead of dice pips. It selects from the entire collection independently
+of the current search. Every book has the same chance; consecutive rolls may pick
+the same book. The result offers another roll or the existing book details editor.
+Saving there refreshes the list with its current search.
+
+The dialog supports keyboard focus, both themes, reduced motion, missing/broken
+covers (including the dice faces), empty collections, and retry after a load failure.
+Reduced motion keeps both the dice and its cover previews still. Closing cancels pending
+requests and animation timers. Collection requests time out after 15 seconds.
+
+`GET /books` without `q` or `_limit` supplies the full selection pool. Verified
+against the local API on 2026-11-10: 250 books with 250 distinct ISBNs, compared
+with 10 books from `GET /books?_limit=10`.
+
+Run `npx playwright test tests/book-random.spec.ts` for the mocked dice flow.
+
+### Details and editing
+
 Book details use `GET /books/:isbn`; editing sends the full book to `PUT /books/:isbn`,
 including its unchanged `id`, `userId`, and ISBN. `price` remains a string.
 See the [Bookmonkey API documentation](https://www.npmjs.com/package/bookmonkey-api).
