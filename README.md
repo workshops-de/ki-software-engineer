@@ -23,6 +23,16 @@ Ein Architekturreview mit Aufbau, Datenfluss, Risikobewertungen und priorisierte
 | `npm install` | Installs the packages to develop the Angular app |
 | `npm start`   | Starts the Angular app                           |
 
+## Color scheme
+
+The header offers System / Hell / Dunkel. System is the default and follows live
+changes to the device color scheme. The choice is stored locally under
+`bookmonkey-theme`; if browser storage is blocked, it still works for the session.
+The theme also applies to Material dialogs and toast messages.
+
+Run `npx playwright test tests/theme.spec.ts` to check theme selection, persistence,
+system changes, keyboard access, blocked storage, and mobile surfaces in both themes.
+
 ## The API
 
 Book details use `GET /books/:isbn`; editing sends the full book to `PUT /books/:isbn`,

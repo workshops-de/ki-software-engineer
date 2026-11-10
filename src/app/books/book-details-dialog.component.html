@@ -7,7 +7,7 @@
     <button mat-stroked-button type="button" (click)="load()">Retry</button>
   } @else if (state === 'viewing' && book) {
     <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-6">
-      <div class="bg-gray-100 flex items-center justify-center min-h-48 rounded overflow-hidden">
+      <div class="bg-gray-100 dark:bg-gray-800 flex items-center justify-center min-h-48 rounded overflow-hidden">
         @if (book.cover && !coverFailed) {
           <img
             [src]="book.cover"
@@ -16,7 +16,7 @@
             class="w-full max-h-64 object-contain"
           />
         } @else {
-          <span class="text-gray-500 p-4 text-center">No cover available</span>
+          <span class="text-gray-500 dark:text-gray-400 p-4 text-center">No cover available</span>
         }
       </div>
       <dl class="grid gap-2">
@@ -89,7 +89,7 @@
         ><mat-label>Description</mat-label><textarea matInput formControlName="abstract" rows="5"></textarea>
       </mat-form-field>
       @if (saveError) {
-        <p role="alert" class="sm:col-span-2 text-red-700">{{ saveError }}</p>
+        <p role="alert" class="sm:col-span-2 text-red-700 dark:text-red-300">{{ saveError }}</p>
       }
       @if (state === 'saving') {
         <p role="status">Saving changes...</p>

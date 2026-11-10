@@ -1,1 +1,36 @@
 @import 'tailwindcss';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  color-scheme: light;
+  --toast-background: #f4f4f4;
+  --toast-text: #1f2937;
+  --toast-action: #1d4ed8;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --toast-background: #1f2937;
+  --toast-text: #f3f4f6;
+  --toast-action: #93c5fd;
+}
+
+body {
+  background: #f9fafb;
+  color: #1f2937;
+}
+
+[data-theme='dark'] body {
+  background: #030712;
+  color: #f3f4f6;
+}
+
+:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
+
+[data-theme='dark'] :focus-visible {
+  outline-color: #93c5fd;
+}

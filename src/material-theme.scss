@@ -10,9 +10,9 @@
   );
   @include mat.snack-bar-overrides(
     (
-      container-color: #f4f4f4,
-      supporting-text-color: #1f2937,
-      button-color: #1d4ed8
+      container-color: var(--toast-background),
+      supporting-text-color: var(--toast-text),
+      button-color: var(--toast-action)
     )
   );
 }
