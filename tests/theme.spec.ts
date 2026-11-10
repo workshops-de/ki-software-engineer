@@ -2,7 +2,26 @@ import { expect, test, Locator, Page } from '@playwright/test';
 import { api, book, setup } from './support/books';
 
 const storageKey = 'bookmonkey-theme';
-const picker = (page: Page) => page.getByRole('combobox', { name: 'Farbschema' });
+const picker = (page: Page) => page.getByRole('button', { name: /^Farbschema:/ });
+const modeNames: Record<string, string> = { system: 'System', light: 'Hell', dark: 'Dunkel' };
+
+async function expectPreference(page: Page, preference: string) {
+  await expect(picker(page)).toHaveAccessibleName(new RegExp(`^Farbschema: ${modeNames[preference]}\\.`));
+}
+
+async function chooseTheme(page: Page, preference: string) {
+  const modes = ['system', 'light', 'dark'];
+  for (let step = 0; step < 3; step++) {
+    const label = await picker(page).getAttribute('aria-label');
+    const current = modes.findIndex(mode => label?.startsWith(`Farbschema: ${modeNames[mode]}.`));
+    expect(current).toBeGreaterThanOrEqual(0);
+    const next = modes[(current + 1) % modes.length];
+    await picker(page).click();
+    await expectPreference(page, next);
+    if (next === preference) return;
+  }
+  throw new Error(`Could not select theme ${preference}`);
+}
 
 async function expectTheme(page: Page, theme: 'light' | 'dark') {
   await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
@@ -39,7 +58,7 @@ for (const scheme of ['light', 'dark'] as const) {
   test(`defaults to system and follows live changes from ${scheme}`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme });
     await setup(page);
-    await expect(picker(page)).toHaveValue('system');
+    await expectPreference(page, 'system');
     await expectTheme(page, scheme);
     await page.getByRole('button', { name: `Details for ${book.title}` }).click();
     await expectSurface(page.locator('.mat-mdc-dialog-surface'), scheme === 'dark');
@@ -55,10 +74,10 @@ for (const preference of ['light', 'dark', 'system']) {
   test(`restores the saved ${preference} preference`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await setup(page);
-    await picker(page).selectOption(preference);
+    await chooseTheme(page, preference);
     await expect.poll(() => page.evaluate(key => localStorage.getItem(key), storageKey)).toBe(preference);
     await page.reload();
-    await expect(picker(page)).toHaveValue(preference);
+    await expectPreference(page, preference);
     await expectTheme(page, preference === 'light' ? 'light' : 'dark');
   });
 }
@@ -66,29 +85,34 @@ for (const preference of ['light', 'dark', 'system']) {
 test('manual choices survive system changes and System resumes following them', async ({ page }) => {
   await setup(page);
   for (const preference of ['light', 'dark'] as const) {
-    await picker(page).selectOption(preference);
+    await chooseTheme(page, preference);
     for (const colorScheme of ['dark', 'light'] as const) {
       await page.emulateMedia({ colorScheme });
       await expectTheme(page, preference);
     }
   }
-  await picker(page).selectOption('system');
+  await chooseTheme(page, 'system');
   await expectTheme(page, 'light');
   await page.emulateMedia({ colorScheme: 'dark' });
   await expectTheme(page, 'dark');
 });
 
-test('all options are labelled, keyboard accessible and visibly focused', async ({ page }) => {
+test('icon button cycles all modes with keyboard access and visible focus', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
   await setup(page);
-  await picker(page).focus();
-  await picker(page).press('Home');
-  await picker(page).press('Enter');
-  await expect(picker(page)).toHaveValue('system');
-  for (const value of ['light', 'dark']) {
-    await picker(page).press('ArrowDown');
-    await picker(page).press('Enter');
-    await expect(picker(page)).toHaveValue(value);
-    await expectTheme(page, value as 'light' | 'dark');
+  await page.keyboard.press('Tab');
+  await expect(picker(page)).toBeFocused();
+  await expectPreference(page, 'system');
+  await expect(picker(page).locator('svg')).toHaveAttribute('aria-hidden', 'true');
+  await expect(picker(page)).toHaveAttribute('title', 'Farbschema: System. Zu Hell wechseln');
+  for (const [key, value] of [
+    ['Enter', 'light'],
+    ['Space', 'dark'],
+    ['Enter', 'system']
+  ]) {
+    await picker(page).press(key);
+    await expectPreference(page, value);
+    await expectTheme(page, value === 'dark' ? 'dark' : 'light');
     await expect(picker(page)).toBeFocused();
     await expect(picker(page)).toHaveCSS('outline-style', 'solid');
     await expect(picker(page)).toHaveCSS('outline-width', '2px');
@@ -109,8 +133,8 @@ for (const blocked of ['read', 'write']) {
     await page.emulateMedia({ colorScheme: 'light' });
     await setup(page);
     for (const value of ['dark', 'light', 'system']) {
-      await picker(page).selectOption(value);
-      await expect(picker(page)).toHaveValue(value);
+      await chooseTheme(page, value);
+      await expectPreference(page, value);
       await expectTheme(page, value === 'dark' ? 'dark' : 'light');
     }
     await page.emulateMedia({ colorScheme: 'dark' });
@@ -125,7 +149,7 @@ test('ignores an invalid stored preference', async ({ page }) => {
   await page.addInitScript(key => localStorage.setItem(key, 'invalid'), storageKey);
   await page.emulateMedia({ colorScheme: 'dark' });
   await setup(page);
-  await expect(picker(page)).toHaveValue('system');
+  await expectPreference(page, 'system');
   await expectTheme(page, 'dark');
 });
 
@@ -133,7 +157,7 @@ for (const scheme of ['light', 'dark'] as const) {
   test(`themes mobile cards, search, dialogs, validation and toast in ${scheme}`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await setup(page);
-    await picker(page).selectOption(scheme);
+    await chooseTheme(page, scheme);
     const dark = scheme === 'dark';
     await expectSurface(page.locator('body'), dark);
     await expectSurface(page.locator('header'), dark);
@@ -158,7 +182,7 @@ for (const scheme of ['light', 'dark'] as const) {
 
   test(`themes loading, empty and error states in ${scheme}`, async ({ page }) => {
     await setup(page);
-    await picker(page).selectOption(scheme);
+    await chooseTheme(page, scheme);
     let release!: () => void;
     const pending = new Promise<void>(resolve => (release = resolve));
     await page.route(`${api}*`, async route => {

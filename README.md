@@ -25,7 +25,9 @@ Ein Architekturreview mit Aufbau, Datenfluss, Risikobewertungen und priorisierte
 
 ## Color scheme
 
-The header offers System / Hell / Dunkel. System is the default and follows live
+The header has an icon button that cycles through System → Hell → Dunkel → System.
+Its monitor, sun, or moon icon shows the current mode; the tooltip names the current
+and next mode. System is the default and follows live
 changes to the device color scheme. The choice is stored locally under
 `bookmonkey-theme`; if browser storage is blocked, it still works for the session.
 The theme also applies to Material dialogs and toast messages.
