@@ -1,5 +1,5 @@
 interface:
   display_name: 'BookMonkey-Anforderung umsetzen'
-  short_description: 'Anforderungen klären, umsetzen, testen und refaktorieren'
+  short_description: 'Issues mit Red, Green und Blue vollständig umsetzen'
 policy:
   allow_implicit_invocation: true

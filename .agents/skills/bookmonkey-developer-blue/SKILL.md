@@ -33,6 +33,22 @@ relevanten Verfahren zu Anfragen/Lebensdauer, Fehlergrenzen, Logik/Präsentation
 Verträgen und Absicherung. Notiere Fundstelle, konkreten Wartungsnutzen, gewähltes Verfahren und die zu bewahrende
 Invariante. Test- und Tooling-Verbesserungen sind separate Aufgaben; halte die Testressourcen in Blue unverändert.
 
+### SOLID als Prüfmaßstab
+
+Prüfe SOLID im betroffenen Bereich, soweit anwendbar. Nutze die bereits beschriebenen Verantwortlichkeitsgrenzen
+und expliziten Verträge für SRP und DIP; ergänze die übrigen Prüfrichtungen ohne paralleles Regelwerk:
+
+- **Single Responsibility (SRP):** Halte fachlich unterschiedliche Änderungsgründe getrennt, insbesondere
+  Anfrageorchestrierung, Darstellung und Diagnosen.
+- **Open/Closed (OCP):** Schaffe Erweiterungspunkte nur bei konkretem Erweiterungsbedarf; vermeide vorsorgliche
+  Strategien oder Vererbungshierarchien.
+- **Liskov Substitution (LSP):** Bewahre bei austauschbaren Implementierungen die zugesagten Eingaben, Ergebnisse
+  und Fehlersemantiken; verschärfe keine Vorbedingungen und schwäche keine Nachbedingungen.
+- **Interface Segregation (ISP):** Halte Komponenten- und Serviceverträge auf die Bedürfnisse ihrer Verbraucher
+  begrenzt; erzwinge keine Abhängigkeit von ungenutzten Fähigkeiten.
+- **Dependency Inversion (DIP):** Richte Abhängigkeiten an benötigten Verträgen statt austauschbaren Details aus.
+  Angular-DI allein belegt DIP nicht; führe zusätzliche Interfaces oder Schichten nur bei belegbarem Nutzen ein.
+
 ## Kleine, verhaltenswahrende Schritte
 
 - Wähle die kleinste sinnvolle Änderung mit klarem Wartungsnutzen; vermeide kosmetische Komplettumbauten und

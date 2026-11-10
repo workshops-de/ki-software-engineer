@@ -6,6 +6,7 @@ import { Book } from './book';
 import { BookApiClient } from './book-api-client.service';
 import { BookItemComponent } from './book-item.component';
 import { BookCatalogSelection } from './book-catalog-selection.service';
+import { BookPaginationComponent } from './book-pagination.component';
 import { RequestErrorComponent } from '../shared/request-error.component';
 
 type CatalogIntent = { term: string; page: number; debounce: boolean };
@@ -16,7 +17,7 @@ type CatalogState =
 @Component({
   selector: 'app-book-list',
   standalone: true,
-  imports: [AsyncPipe, FormsModule, BookItemComponent, RequestErrorComponent],
+  imports: [AsyncPipe, FormsModule, BookItemComponent, BookPaginationComponent, RequestErrorComponent],
   templateUrl: './book-list.component.html'
 })
 export class BookListComponent {

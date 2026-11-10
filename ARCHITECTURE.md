@@ -70,6 +70,8 @@ flowchart TD
 
     subgraph books["books feature"]
       List -->|book input per card| Item["BookItemComponent"]
+      List -->|current page and page numbers| Pagination["BookPaginationComponent — navigation presentation"]
+      Pagination -->|pageChange| List
       Item -->|"RouterLink /books/:id"| Router
       Item --> Cover["BookCoverComponent — image and fallback"]
       Detail --> Cover
@@ -106,7 +108,7 @@ Solid arrows show bootstrap, rendering, service calls, and data flow; dotted arr
 3. The container emits typed loading, success (with books, current page, and page numbers), or error state. `book-list.component.html` renders the state with built-in control flow and tracks cards by book ID. New intent immediately replaces old results with loading, including during debounce, so stale results are never displayed under a new query.
 4. Search uses `ngModel` to update the intent subject and resets the page to one. An outer `switchMap` immediately cancels the previous debounce or request. Nonempty input waits 300 ms using an RxJS timer before calling the API; unchanged input is ignored. Clearing through the button or deleting all text loads page one immediately and cancels any pending timer. Every intent updates the in-memory selection for return navigation.
 5. HTTP errors become a visible alert with manual Retry, distinct from successful empty results. Request-local `catchError` keeps later searches and retries working. Retry repeats the same page and term immediately. `AsyncPipe` unsubscribes on destruction, canceling pending timers and HTTP work. There are no imperative component subscriptions or constructor effects.
-6. Successful results with more than one page expose numbered buttons, Previous, and Next. `aria-current="page"` identifies the selected page; Previous and Next are disabled at their respective boundaries. Page changes load immediately and retain the search term. Empty and single-page results hide navigation. Native buttons, visible focus outlines, wrapping layout, and shared theme tokens support keyboard use and narrow displays in both themes.
+6. The feature-local [BookPaginationComponent](src/app/books/book-pagination.component.ts) renders navigation in its adjacent HTML template. Required inputs supply the current page and page numbers; its `pageChange` output passes user intent to the catalog container, which validates the requested page and owns loading. The presentation component hides navigation for zero or one page and owns the numbered buttons, Previous/Next boundaries, `aria-current="page"`, focus outlines, wrapping layout, and theme tokens. It neither fetches books nor stores catalog selection. Page changes load immediately and retain the search term.
 
 `src/app/books/book-catalog-selection.service.ts` holds only the selected page and search term in a root-provided `BookCatalogSelection` instance. It preserves catalog intent across routed views during one SPA visit; it does not cache responses or use persistent storage or URL parameters. A full reload creates the default unfiltered page-one selection.
 

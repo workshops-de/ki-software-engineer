@@ -69,37 +69,11 @@
             </div>
           }
         </div>
-        @if (state.pages.length > 1) {
-          <nav aria-label="Book pages" class="mt-8 flex flex-wrap items-center justify-center gap-2">
-            <button
-              type="button"
-              (click)="goToPage(state.page - 1, state.pages.length)"
-              [disabled]="state.page === 1"
-              class="rounded border border-line bg-surface px-3 py-2 text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
-            >
-              Previous
-            </button>
-            @for (page of state.pages; track page) {
-              <button
-                type="button"
-                (click)="goToPage(page, state.pages.length)"
-                [attr.aria-label]="'Page ' + page"
-                [attr.aria-current]="page === state.page ? 'page' : null"
-                class="rounded border border-line bg-surface px-3 py-2 text-foreground aria-[current=page]:border-accent aria-[current=page]:font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
-                {{ page }}
-              </button>
-            }
-            <button
-              type="button"
-              (click)="goToPage(state.page + 1, state.pages.length)"
-              [disabled]="state.page === state.pages.length"
-              class="rounded border border-line bg-surface px-3 py-2 text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
-            >
-              Next
-            </button>
-          </nav>
-        }
+        <app-book-pagination
+          [currentPage]="state.page"
+          [pages]="state.pages"
+          (pageChange)="goToPage($event, state.pages.length)"
+        />
       }
     }
   }
