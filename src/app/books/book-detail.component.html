@@ -1,38 +1,38 @@
 <div class="container mx-auto max-w-5xl px-4 py-12">
   <a
     routerLink="/"
-    class="inline-block mb-8 rounded text-blue-700 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
+    class="inline-block mb-8 rounded text-accent underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
     >Back to books</a
   >
 
   @if (state$ | async; as state) {
     @switch (state.status) {
       @case ('loading') {
-        <p role="status" class="py-20 text-center text-gray-600 animate-pulse">Loading book...</p>
+        <p role="status" class="py-20 text-center text-muted animate-pulse">Loading book...</p>
       }
       @case ('not-found') {
         <app-request-error>
-          <h1 class="text-2xl font-bold text-gray-800">Book not found</h1>
-          <p class="mt-3 text-gray-600">
-            This book could not be found. Return to the collection to choose another book.
-          </p>
+          <h1 class="text-2xl font-bold text-foreground">Book not found</h1>
+          <p class="mt-3 text-muted">This book could not be found. Return to the collection to choose another book.</p>
         </app-request-error>
       }
       @case ('error') {
         <app-request-error [retryable]="true" (retry)="retry()">
-          <h1 class="text-2xl font-bold text-gray-800">Unable to load book</h1>
-          <p class="mt-3 text-gray-600">Please try again.</p>
+          <h1 class="text-2xl font-bold text-foreground">Unable to load book</h1>
+          <p class="mt-3 text-muted">Please try again.</p>
         </app-request-error>
       }
       @case ('success') {
-        <article class="grid gap-8 rounded-lg bg-white p-6 shadow-md md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:p-8">
+        <article
+          class="grid gap-8 rounded-lg bg-surface p-6 shadow-md md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:p-8"
+        >
           <app-book-cover [src]="state.book.cover" [title]="state.book.title" />
           <div class="min-w-0 break-words">
-            <h1 class="text-3xl font-bold text-blue-700">{{ state.book.title }}</h1>
+            <h1 class="text-3xl font-bold text-accent">{{ state.book.title }}</h1>
             @if (state.book.subtitle) {
-              <p class="mt-2 text-xl text-gray-600">{{ state.book.subtitle }}</p>
+              <p class="mt-2 text-xl text-muted">{{ state.book.subtitle }}</p>
             }
-            <dl class="mt-6 grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-gray-700">
+            <dl class="mt-6 grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-foreground">
               <dt class="font-semibold">Author</dt>
               <dd>{{ state.book.author }}</dd>
               <dt class="font-semibold">ISBN</dt>
@@ -44,10 +44,10 @@
               <dt class="font-semibold">Price</dt>
               <dd>{{ state.book.price }}</dd>
             </dl>
-            <h2 class="mt-8 text-xl font-semibold text-gray-800">Abstract</h2>
+            <h2 class="mt-8 text-xl font-semibold text-foreground">Abstract</h2>
             <p
               data-testid="book-abstract"
-              class="mt-3 whitespace-pre-wrap leading-relaxed text-gray-700"
+              class="mt-3 whitespace-pre-wrap leading-relaxed text-foreground"
               [textContent]="state.book.abstract"
             ></p>
           </div>

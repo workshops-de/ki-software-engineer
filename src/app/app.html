@@ -1,6 +1,7 @@
-<header class="bg-white shadow">
-  <div class="container mx-auto px-4 py-6">
-    <h1 class="text-3xl font-bold text-blue-600">BookMonkey</h1>
+<header class="bg-surface shadow">
+  <div class="container mx-auto flex flex-wrap items-center justify-between gap-4 px-4 py-6">
+    <h1 class="text-3xl font-bold text-accent">BookMonkey</h1>
+    <app-theme-picker />
   </div>
 </header>
 
@@ -8,8 +9,8 @@
   <router-outlet></router-outlet>
 </main>
 
-<footer class="bg-gray-100 mt-12">
+<footer class="bg-subtle mt-12">
   <div class="container mx-auto px-4 py-6">
-    <p class="text-center text-gray-600 text-sm">© 2023 BookMonkey App - Angular Workshop by workshops.de</p>
+    <p class="text-center text-muted text-sm">© 2023 BookMonkey App - Angular Workshop by workshops.de</p>
   </div>
 </footer>

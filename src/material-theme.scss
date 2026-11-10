@@ -3,7 +3,9 @@
 :root {
   @include mat.snack-bar-overrides(
     (
-      container-color: #f4f4f4
+      container-color: var(--color-subtle),
+      supporting-text-color: var(--color-foreground),
+      button-color: var(--color-accent)
     )
   );
 }

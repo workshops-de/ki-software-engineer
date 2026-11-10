@@ -1,1 +1,30 @@
 @import 'tailwindcss';
+
+@theme {
+  --color-canvas: light-dark(#ffffff, #111827);
+  --color-surface: light-dark(#ffffff, #1f2937);
+  --color-subtle: light-dark(#f3f4f6, #374151);
+  --color-foreground: light-dark(#1f2937, #f3f4f6);
+  --color-muted: light-dark(#4b5563, #d1d5db);
+  --color-line: light-dark(#d1d5db, #6b7280);
+  --color-accent: light-dark(#1d4ed8, #93c5fd);
+}
+
+:root {
+  color-scheme: light dark;
+  background-color: var(--color-canvas);
+  color: var(--color-foreground);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-canvas);
+  min-width: 320px;
+}
