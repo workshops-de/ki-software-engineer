@@ -1,6 +1,6 @@
 ---
 name: tdd-blue
-description: Perform the TDD blue (refactor) phase after a green implementation by improving code clarity, duplication, and responsibility boundaries while preserving observable behavior and passing acceptance tests. Use after tdd-green or for a scoped behavior-preserving refactor with a green baseline; do not introduce new feature behavior or treat failing acceptance tests as refactoring work.
+description: Perform the TDD blue (refactor) phase after a green implementation, including refactoring Angular components to project standards and pragmatic SOLID principles. Improve clarity, duplication, and responsibility boundaries while preserving observable behavior and passing acceptance tests. Use after tdd-green or for a scoped behavior-preserving refactor with a green baseline; do not introduce new feature behavior or treat failing acceptance tests as refactoring work.
 ---
 
 # TDD Blue Phase
@@ -42,6 +42,24 @@ of the Red-Green-Refactor loop; it does not start another feature implementation
   focused characterization test of that existing behavior and establish it passes
   before refactoring. Do not encode an identified bug as a new acceptance requirement
   or add tests that merely mirror the implementation's private structure.
+
+## Angular component standards
+
+- For Angular work, follow the applicable project and feature `AGENTS.md` guidance
+  first. Keep one component per file and use consistent abstraction levels: components
+  coordinate view state and events, API adapters handle transport, and child components
+  present focused pieces of UI, in line with the existing architecture.
+- Apply SOLID pragmatically to improve cohesion, responsibility boundaries, and
+  dependency direction. Extract a service, helper, or child component only when it
+  clarifies an existing responsibility or reuse; do not add layers or abstractions
+  merely to satisfy a principle by name.
+- Prefer reactive composition for asynchronous UI flows: compose typed streams with
+  the project's RxJS patterns, let `AsyncPipe` own template subscriptions where
+  appropriate, and preserve cancellation, error, and lifecycle behavior. Avoid nested
+  subscriptions and duplicated subscriptions to cold requests.
+- Keep short templates inline and use colocated external templates for large or
+  branching markup, following the local project guidance. Treat these as scoped
+  refactoring criteria, not a reason to convert unrelated components or templates.
 
 ## Refactor without changing the contract
 

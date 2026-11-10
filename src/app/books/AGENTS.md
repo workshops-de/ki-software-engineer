@@ -6,66 +6,55 @@ for the fuller data flow and limitations.
 
 ## Responsibilities and API contract
 
-- [BookListComponent](./book-list.component.ts) owns list, loading, and search state.
-  [BookItemComponent](./book-item.component.ts) presents a `Book` input and links to its details;
-  keep API requests out of the card.
-- [BookDetailsComponent](./book-details.component.ts) owns route-driven detail loading, error/retry
-  behavior, and cover fallback. Preserve direct navigation and reload support without relying on
-  a previously loaded list.
-- Keep HTTP operations in [BookApiClient](./book-api-client.service.ts) and the shared data contract
-  in [book.ts](./book.ts). The current base URL is `http://localhost:4730/books`.
-- Preserve `getBooks(pageSize = 10, searchTerm?)` using `_limit` and optional `q` via `HttpParams`,
-  and `getBook(id)` using a URL-encoded ID. Do not infer real search semantics from the query name
-  or source comments; verify against the API when changing search behavior.
-- `Book.price` is a string, `subtitle` is optional, and the description is `abstract`. Do not invent
-  fields such as genre or publication date, or assume runtime response validation exists.
-- Routes are registered in [app.routes.ts](../app.routes.ts): `/` for the list and `/books/:id` for
-  details, with a wildcard redirect to the list. Preserve keyboard-accessible card and return links.
+- [BookListComponent](./book-list.component.ts) owns requests, search, list/carousel selection, and
+  party activation. [BookItemComponent](./book-item.component.ts) and
+  [BookCarouselComponent](./book-carousel.component.ts) present inputs and link to details; neither makes API calls.
+- [BookDetailsComponent](./book-details.component.ts) owns route-driven loading, retry, and cover
+  fallback. Preserve direct navigation/reload without a previously loaded list.
+- Keep HTTP in [BookApiClient](./book-api-client.service.ts): base URL `http://localhost:4730/books`,
+  `getBooks(pageSize = 10, searchTerm?)` with `_limit`/optional `q` via `HttpParams`, and `getBook(id)`
+  with URL-encoded IDs. Verify real search semantics against the API, not comments or mocks.
+- Preserve the [Book contract](./book.ts): `price` is a string, `subtitle` is optional, and the description
+  is `abstract`. Do not invent fields or assume runtime response validation.
+- Preserve [routes](../app.routes.ts): `/`, `/books/:id`, and wildcard redirect to `/`, with
+  keyboard-accessible cover/card and return links.
 
-## State and edge cases
+## Request and view invariants
 
-- Details use route parameters plus a retry trigger with `switchMap` and `AsyncPipe`. Keep cancellation
-  of superseded requests and handle request errors inside the inner stream so retries and later
-  route changes remain usable.
-- Preserve distinct loading, success, HTTP 404, and other request-error states; offer retry for
-  request failures. Hide empty additional fields, render `abstract` as plain text, and show a
-  placeholder for missing or broken covers. Reset cover failure state for each request.
-- The list uses typed search/clear/retry actions, a 300 ms RxJS delay for text changes, and an outer
-  `switchMap` that immediately cancels superseded delays and requests. `AsyncPipe` owns cleanup.
-  Loading, successful results, and errors are mutually exclusive states; empty results are success.
-- Do not assume list search is persisted in the URL or restored after returning from details.
+- List search uses typed actions, a 300 ms delay for text changes, and `switchMap` before that delay
+  to cancel superseded delays/requests immediately. Suppress repeated terms; clear loads the unfiltered
+  list immediately, and retry must work for an unchanged term.
+- List/details use discriminated request states and one `AsyncPipe` subscription. Handle errors inside
+  the switched request so input, retry, and route changes stay usable. Keep loading, success/empty, and
+  errors distinct; details additionally distinguish HTTP 404.
+- Details hide empty additional fields, interpolate `abstract` as text, and provide placeholders for
+  missing/broken covers. Keep cover-failure state separate and reset it per request.
+- Keep the colocated external templates and request/retry logic in TypeScript. Search and view selection
+  are local, not URL-persisted or restored after returning from details.
 
-## Patterns to preserve when touching this feature
+## Carousel invariants
 
-The list and detail request flows use discriminated states and external HTML templates.
-
-- Keep list search in one typed action/state stream. Debounce text changes by 300 ms, suppress
-  repeated search terms, and use `switchMap` before the delay for immediate request cancellation.
-  Clear search must cancel pending input and immediately request the unfiltered list; an explicit
-  retry must still work for an unchanged search term.
-- Keep request error handling inside the switched request so later input and retries still work.
-  Represent list failures explicitly rather than showing the successful-empty message or relying
-  on console output. Follow the shared error-handling guidance for reporting and notification ownership.
-- When refactoring state, use a discriminated union for mutually exclusive request states and let
-  the template select the corresponding view. Keep local cover-failure state separate and reset it
-  when loading another book.
-- Keep the colocated external HTML files for the list, details, and card. Keep
-  request pipelines, retry decisions, and derived display values in TypeScript; retain the card as
-  a presentation component. Preserve existing navigation, text rendering, and accessible feedback.
+- Reuse successful list results without refetching on view selection; share loading, empty, error,
+  and retry views. Keep selection/party state in the list and animation/gesture state in the carousel.
+- Recognize `party` while carousel view is selected, including focused search and temporary loading.
+  Escape stops party mode; returning to list clears party and partial key sequences.
+- Preserve continuous party acceleration, fresh-start speed, and reduced-motion behavior. Cancel animation
+  frames and remove component-owned listeners on teardown, including replacement by loading/error views.
+- Preserve keyboard rotation/focus navigation, mouse/touch dragging without accidental link activation,
+  vertical touch scrolling, cover placeholders, and narrow layouts. Keep specialized 3D/animation styling
+  in [carousel CSS](./book-carousel.component.css).
 
 ## Feature validation
 
-- Existing browser coverage is in [tests/book-details.spec.ts](../../../tests/book-details.spec.ts).
-  When changing feature behavior, extend relevant scenarios there, following its controlled API
-  responses and role-based locators. Tests live outside this directory and inherit root guidance.
-- List orchestration and recovery coverage lives in
-  [tests/book-list.spec.ts](../../../tests/book-list.spec.ts); shared reporting coverage lives in
-  [tests/global-errors.spec.ts](../../../tests/global-errors.spec.ts). Run these alongside relevant
-  detail tests when changing shared behavior.
-- Cover navigation/direct reload, loading, not-found, retry/network errors, optional fields,
-  cover fallback, narrow layouts with long text, and route-change cancellation when affected.
-- When changing list orchestration, add focused browser coverage for rapid input, clear during a
-  pending debounce/request, stale-response prevention, error versus empty results, and recovery.
-  When adding shared reporting, verify that feature errors do not trigger duplicate notifications.
-- Use the targeted Playwright command from the root guidance and the production build for application
-  changes. Report mocked browser checks separately from any real-API smoke checks.
+Extend affected mocked browser scenarios using role-based locators:
+
+- [Details](../../../tests/book-details.spec.ts): navigation/reload, request states/retry, optional fields,
+  plain text, covers, narrow layouts, and route-change cancellation.
+- [List](../../../tests/book-list.spec.ts): debounce/cancellation, clear, cleanup, error versus empty, and recovery.
+- [Carousel](../../../tests/book-carousel.spec.ts): view switching, pointer/keyboard interaction, navigation,
+  party activation/acceleration/cleanup, placeholders, and responsive/reduced-motion behavior.
+- [Global errors](../../../tests/global-errors.spec.ts): reporting, deduplication, and local recovery without duplicate toasts.
+
+Use the build and selected browser specs from [root guidance](../../../AGENTS.md#commands-and-validation).
+Tests inherit root guidance, not this directory's. Mocked responses do not verify real search semantics;
+synthetic touch PointerEvents do not verify physical devices.
