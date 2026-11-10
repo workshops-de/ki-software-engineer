@@ -44,6 +44,9 @@ the full collection from the existing `getAllBooks()` endpoint. Start the fronte
 with `npm start` and the separate API with `npx bookmonkey-api` as usual. No extra
 server, API key, example books, or graphics assets are needed.
 
+In Universe, the same header control shows a list icon and returns to the normal
+book collection at `/`. Its tooltip and accessible label name the destination.
+
 `src/app/book-universe/` contains the standalone Angular screen (local Signals,
 search, panels and Discovery controls), `universe-data.ts` (pure classification,
 layout, relationships, search and camera calculations), and `universe-renderer.ts`

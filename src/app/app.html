@@ -3,15 +3,19 @@
     <h1 class="text-3xl font-bold text-blue-600 dark:text-blue-400">BookMonkey</h1>
     <div class="flex items-center gap-3">
       <a
-        routerLink="/universe"
-        routerLinkActive="text-blue-600"
-        aria-label="BookMonkey Universe öffnen"
-        title="BookMonkey Universe"
+        [routerLink]="universeActive ? '/' : '/universe'"
+        [class.text-blue-600]="universeActive"
+        [attr.aria-label]="universeActive ? 'Büchersammlung öffnen' : 'BookMonkey Universe öffnen'"
+        [title]="universeActive ? 'Büchersammlung öffnen' : 'BookMonkey Universe öffnen'"
         class="inline-flex size-11 items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
       >
         <svg aria-hidden="true" class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-          <circle cx="12" cy="12" r="6" />
-          <ellipse cx="12" cy="12" rx="11" ry="3.5" transform="rotate(-30 12 12)" />
+          @if (universeActive) {
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1" />
+          } @else {
+            <circle cx="12" cy="12" r="6" />
+            <ellipse cx="12" cy="12" rx="11" ry="3.5" transform="rotate(-30 12 12)" />
+          }
         </svg>
       </a>
       <button

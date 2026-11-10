@@ -34,6 +34,41 @@ async function setupUniverse(page: Page, options: { fallback?: boolean; mobile?:
   await expect(page.getByText('Deine Galaxie entsteht')).toBeHidden();
 }
 
+for (const mobile of [false, true]) {
+  test(`header switches between Universe and collection${mobile ? ' on mobile' : ''}`, async ({ page }) => {
+    await setupUniverse(page, { mobile });
+    const header = page.getByRole('banner');
+    const collectionLink = header.getByRole('link', { name: 'Büchersammlung öffnen', exact: true });
+    await expect(collectionLink).toHaveAttribute('href', '/');
+    await expect(collectionLink).toHaveAttribute('title', 'Büchersammlung öffnen');
+    await collectionLink.click();
+    await expect(page).toHaveURL('http://localhost:4200/');
+    await expect(page.getByRole('heading', { name: 'Book Collection', exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Galaxie durchsuchen' })).toHaveCount(0);
+
+    const universeLink = header.getByRole('link', { name: 'BookMonkey Universe öffnen', exact: true });
+    await expect(universeLink).toHaveAttribute('href', '/universe');
+    await expect(universeLink).toHaveAttribute('title', 'BookMonkey Universe öffnen');
+    await universeLink.focus();
+    await universeLink.press('Enter');
+    await expect(page).toHaveURL('http://localhost:4200/universe');
+    await expect(page.getByRole('heading', { name: 'BookMonkey Universe', exact: true })).toBeVisible();
+    await collectionLink.focus();
+    await collectionLink.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Book Collection', exact: true })).toBeVisible();
+
+    await page.goBack();
+    await expect(collectionLink).toBeVisible();
+    await page.goForward();
+    await expect(universeLink).toBeVisible();
+
+    await page.goto('http://localhost:4200/universe?view=galaxy#books');
+    await expect(collectionLink).toHaveAttribute('href', '/');
+    await collectionLink.click();
+    await expect(page.getByRole('heading', { name: 'Book Collection', exact: true })).toBeVisible();
+  });
+}
+
 test('loads full collection, selects by keyboard, opens existing details and returns to list', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
