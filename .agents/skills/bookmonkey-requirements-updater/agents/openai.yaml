@@ -1,0 +1,5 @@
+interface:
+  display_name: 'Requirements Updater'
+  short_description: 'Issue-Nacharbeiten prüfen und auf GitHub abschließen'
+policy:
+  allow_implicit_invocation: true

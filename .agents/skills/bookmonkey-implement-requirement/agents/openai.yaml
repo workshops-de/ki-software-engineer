@@ -1,5 +1,5 @@
 interface:
   display_name: 'BookMonkey-Anforderung umsetzen'
-  short_description: 'Issues mit Red, Green und Blue vollständig umsetzen'
+  short_description: 'Issues mit Red, Green und Blue umsetzen und abschließen'
 policy:
   allow_implicit_invocation: true
