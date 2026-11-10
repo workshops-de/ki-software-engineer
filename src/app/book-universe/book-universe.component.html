@@ -1,0 +1,245 @@
+<section class="universe" aria-label="BookMonkey Universe">
+  <div #scene class="bm-scene"></div>
+  <div class="bm-vignette"></div>
+  <header class="bm-heading">
+    <a routerLink="/" class="bm-eyebrow">← ZUR BÜCHERSAMMLUNG</a>
+    <h1>BookMonkey <span>Universe</span><span class="bm-orbit" aria-hidden="true">◉</span></h1>
+    <p>Jedes Buch eine Welt. Jede Verbindung eine Entdeckung.</p>
+  </header>
+
+  <div class="bm-search">
+    <div class="search-input-wrap">
+      <span aria-hidden="true">⌕</span>
+      <input
+        #searchInput
+        type="search"
+        aria-label="Galaxie durchsuchen"
+        placeholder="Titel, Autor, ISBN oder eine Idee …"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="universe-results"
+        [attr.aria-expanded]="searchOpen()"
+        [attr.aria-activedescendant]="searchOpen() && results().length ? 'universe-result-' + activeResult() : null"
+        [value]="query()"
+        (input)="search(searchInput.value)"
+        (focus)="searchOpen.set(true)"
+        (keydown)="searchKey($event)"
+      />
+      @if (query()) {
+        <button type="button" aria-label="Suche löschen" (click)="search(''); searchInput.focus()">×</button>
+      }
+    </div>
+    @if (searchOpen()) {
+      <div id="universe-results" role="listbox" aria-label="Suchtreffer" class="bm-results glass">
+        @for (item of results().slice(0, 8); track item.planet.book.isbn; let i = $index) {
+          <button
+            type="button"
+            role="option"
+            [id]="'universe-result-' + i"
+            [attr.aria-selected]="activeResult() === i"
+            (click)="select(item.index)"
+          >
+            <span class="topic-dot" [style.background]="item.planet.color"></span>
+            <span
+              ><strong>{{ item.planet.book.title }}</strong
+              ><small>{{ item.planet.book.author }} · {{ item.planet.topic }}</small></span
+            ><span aria-hidden="true">↗</span>
+          </button>
+        } @empty {
+          <p>Keine passenden Bücher gefunden.</p>
+        }
+        <div class="result-footer">
+          {{ results().length }} Treffer · ↑ ↓ auswählen · Enter entdecken
+          <button type="button" (click)="searchOpen.set(false)">Schließen</button>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="bm-left">
+    <button
+      type="button"
+      class="glass explorer-toggle"
+      [attr.aria-expanded]="explorer()"
+      aria-controls="cluster-explorer"
+      (click)="toggleExplorer()"
+    >
+      ☷ &nbsp; Themen erkunden <span>{{ explorer() ? '−' : '+' }}</span>
+    </button>
+    @if (explorer()) {
+      <aside id="cluster-explorer" class="glass cluster-explorer" aria-label="Cluster-Explorer">
+        <div class="galaxy-stats">
+          <div>
+            <strong>{{ galaxy().planets.length }}</strong
+            ><small>Bücher</small>
+          </div>
+          <div>
+            <strong>{{ galaxy().clusters.length }}</strong
+            ><small>Themen</small>
+          </div>
+          <div>
+            <strong>{{ galaxy().connections.length }}</strong
+            ><small>Verbindungen</small>
+          </div>
+        </div>
+        <p class="bm-eyebrow">DEINE STERNENSYSTEME</p>
+        <button type="button" [attr.aria-pressed]="!cluster()" (click)="chooseCluster()">
+          Alle Themen <span>{{ galaxy().planets.length }}</span>
+        </button>
+        @for (group of galaxy().clusters; track group.name) {
+          <button type="button" [attr.aria-pressed]="cluster() === group.name" (click)="chooseCluster(group)">
+            <span class="topic-dot" [style.background]="group.color"></span>{{ group.name
+            }}<span>{{ group.count }}</span>
+          </button>
+        }
+        <p class="classification-note">Themen sind aus Schlüsselwörtern abgeleitet, keine hinterlegten Kategorien.</p>
+      </aside>
+    }
+    <button type="button" class="glass library-toggle" [attr.aria-expanded]="library()" (click)="toggleLibrary()">
+      ▤ &nbsp; Buchliste {{ library() ? 'schließen' : 'öffnen' }}
+    </button>
+    @if (graphicsError()) {
+      <div class="graphics-notice glass" role="status">
+        Die 3D-Darstellung ist nicht verfügbar. Suche und Buchliste bleiben bedienbar.
+        <a routerLink="/">Zur Bücherübersicht</a><button type="button" (click)="load()">3D erneut versuchen</button>
+      </div>
+    }
+    @if (library() || graphicsError()) {
+      <aside class="glass bm-library" aria-label="Bücher in der Galaxie">
+        <h2>{{ graphicsError() ? 'Deine Galaxie als Buchliste' : 'Deine Bücher' }}</h2>
+        @for (item of results(); track item.planet.book.isbn) {
+          <button type="button" (click)="select(item.index)">
+            {{ item.planet.book.title }}<small>{{ item.planet.book.author }}</small>
+          </button>
+        } @empty {
+          <p>Keine passenden Bücher.</p>
+        }
+      </aside>
+    }
+  </div>
+
+  @if (loading() || error() || (!loading() && !galaxy().planets.length)) {
+    <div class="bm-status glass" role="status">
+      <span class="status-orbit" aria-hidden="true">◎</span>
+      @if (loading()) {
+        <h2>Deine Galaxie entsteht</h2>
+        <p>Wir laden die Bücher deiner Sammlung …</p>
+      } @else if (error()) {
+        <h2>Verbindung unterbrochen</h2>
+        <p>{{ error() }}</p>
+        <button type="button" (click)="load()">Erneut versuchen</button>
+      } @else {
+        <h2>Noch keine Welten zu entdecken</h2>
+        <p>Die Sammlung enthält keine darstellbaren Bücher.</p>
+        <a routerLink="/">Zur Bücherübersicht</a>
+      }
+    </div>
+  }
+  @if (galaxy().skipped) {
+    <p class="bm-data-note" role="status">
+      {{ galaxy().skipped }} unvollständige oder doppelte Datensätze übersprungen.
+    </p>
+  }
+
+  @if (hoverPlanet(); as planet) {
+    <div class="bm-tooltip glass" [style.left.px]="tooltip().x" [style.top.px]="tooltip().y" role="tooltip">
+      @if (planet.book.cover && !brokenCovers().has(planet.book.isbn)) {
+        <img [src]="planet.book.cover" alt="" (error)="coverFailed(planet.book.isbn)" />
+      }
+      <div>
+        <strong>{{ planet.book.title }}</strong
+        ><small>{{ planet.book.author }}</small
+        ><span [style.color]="planet.color">{{ planet.topic }} · abgeleitet</span>
+      </div>
+    </div>
+  }
+
+  @if (selectedPlanet(); as planet) {
+    <aside class="bm-book-panel glass" aria-label="Ausgewähltes Buch">
+      <button type="button" class="panel-close" aria-label="Zurück zur Galaxie" (click)="back()">×</button>
+      <p class="bm-eyebrow" [style.color]="planet.color">{{ planet.topic }} · ABGELEITETES THEMA</p>
+      <div class="book-panel-cover">
+        @if (planet.book.cover && !brokenCovers().has(planet.book.isbn)) {
+          <img
+            [src]="planet.book.cover"
+            [alt]="'Cover: ' + planet.book.title"
+            (error)="coverFailed(planet.book.isbn)"
+          />
+        } @else {
+          <span aria-label="Kein Cover vorhanden" class="cover-placeholder">{{ planet.book.title.slice(0, 1) }}</span>
+        }
+      </div>
+      <h2>{{ planet.book.title }}</h2>
+      @if (planet.book.subtitle) {
+        <p class="book-subtitle">{{ planet.book.subtitle }}</p>
+      }
+      @if (planet.book.author) {
+        <p class="book-author">{{ planet.book.author }}</p>
+      }
+      <dl>
+        <dt>ISBN</dt>
+        <dd>{{ planet.book.isbn }}</dd>
+        @if (planet.book.publisher) {
+          <dt>Verlag</dt>
+          <dd>{{ planet.book.publisher }}</dd>
+        }
+        @if (planet.book.numPages > 0) {
+          <dt>Seiten</dt>
+          <dd>{{ planet.book.numPages }}</dd>
+        }
+        @if (planet.book.price) {
+          <dt>Preis</dt>
+          <dd>{{ planet.book.price }}</dd>
+        }
+      </dl>
+      @if (planet.book.abstract) {
+        <p class="book-abstract">{{ planet.book.abstract }}</p>
+      }
+      <button type="button" class="bm-primary" (click)="openDetails(planet)">Buchdetails öffnen ↗</button>
+      <button type="button" (click)="select(selected())">Ausgewähltes Buch fokussieren</button>
+      <details class="related-books" open>
+        <summary>Verwandte Bücher entdecken · {{ related().length }}</summary>
+        @for (item of related(); track item.index) {
+          <button type="button" (click)="select(item.index)">
+            <strong>{{ item.planet.book.title }}</strong
+            ><small>{{ item.reasons }}</small>
+          </button>
+        } @empty {
+          <p>Keine ausreichend starken Gemeinsamkeiten gefunden.</p>
+        }
+      </details>
+      <button type="button" (click)="back()">← Zurück zur Galaxie</button>
+    </aside>
+  }
+
+  @if (!loading() && galaxy().planets.length) {
+    <div class="bm-discovery glass" aria-label="Discovery Mode">
+      @if (discovery() === 'stopped') {
+        <button type="button" (click)="startTour()"><span aria-hidden="true">✧</span> Discovery starten</button>
+      } @else {
+        <span class="tour-caption" aria-live="polite">{{ tourCaption() }}</span>
+        <div>
+          <button type="button" aria-label="Vorheriges Buch" (click)="stepTour(-1)">←</button>
+          @if (discovery() === 'playing') {
+            <button type="button" (click)="pauseTour()">Pause</button>
+          } @else {
+            <button type="button" (click)="resumeTour()">Fortsetzen</button>
+          }
+          <button type="button" aria-label="Nächstes Buch" (click)="stepTour(1)">→</button>
+          <button type="button" (click)="stopTour()">Beenden</button>
+        </div>
+      }
+    </div>
+    <div class="bm-controls glass" aria-label="Ansichtssteuerung">
+      <button type="button" title="Reset View" (click)="fit(true)">Zurücksetzen</button>
+      <button type="button" title="Fit Galaxy" (click)="fit()">Einpassen</button>
+      <button type="button" [attr.aria-pressed]="connections()" (click)="toggle('connections')">Verbindungen</button>
+      <button type="button" [attr.aria-pressed]="labels()" (click)="toggle('labels')">Labels</button>
+      <button type="button" [attr.aria-pressed]="rotation()" (click)="toggle('rotation')">Rotation</button>
+    </div>
+  }
+  <p class="bm-hints">
+    Ziehen: rotieren <span>·</span> Scrollen: zoomen <span>·</span> Rechts ziehen: verschieben
+    <span>·</span> Doppelklick: entdecken
+  </p>
+</section>

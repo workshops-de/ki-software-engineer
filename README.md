@@ -37,6 +37,66 @@ system changes, keyboard access, blocked storage, and mobile surfaces in both th
 
 ## The API
 
+### BookMonkey Universe
+
+The planet icon in the header opens `/universe`, a lazy-loaded Three.js galaxy of
+the full collection from the existing `getAllBooks()` endpoint. Start the frontend
+with `npm start` and the separate API with `npx bookmonkey-api` as usual. No extra
+server, API key, example books, or graphics assets are needed.
+
+`src/app/book-universe/` contains the standalone Angular screen (local Signals,
+search, panels and Discovery controls), `universe-data.ts` (pure classification,
+layout, relationships, search and camera calculations), and `universe-renderer.ts`
+(GPU resources, OrbitControls, picking, labels and camera flights). Book models,
+list behavior and API endpoints remain unchanged. The existing `BookDialogService`
+opens fresh details by ISBN; confirmed and unconfirmed editor saves reload Universe.
+
+The current model has no categories, tags, rating or publication year. Topics are
+explicitly marked as inferred: normalized title, subtitle and description are
+checked in priority order for Angular, Security, databases, architecture,
+performance, JavaScript/TypeScript and web-development keywords; unmatched books
+go into “Weitere Themen”. The exact dictionaries live in `universe-data.ts`.
+Sorting by ISBN, a stable ISBN hash and a golden-angle spiral make positions
+reproducible independently of API order. Cluster spacing adapts to collection size.
+Planet radii use the square root of page count, clamped to 0.8–1.8; missing or
+nonpositive counts use radius 1. Invalid records and duplicate ISBNs are counted
+and skipped visibly.
+
+Relationships score an identical normalized author string at 6, a shared inferred
+topic at 2 (excluding the fallback topic), and shared nontrivial words at up to 3.
+The strongest candidates with score ≥3 are retained, capped at three edges per
+book; six candidates per source bound intermediate storage. Reasons appear beside
+related books. This is a deterministic heuristic, not a claim about actual book
+categories or semantic similarity. Pair comparison is quadratic with bounded
+keyword sets; layout tests cover 50, 200, 500 and 1,000 books.
+
+Drag to orbit, scroll/pinch to zoom, right-drag to pan, click to select and
+double-click to fly to a book. Search supports accents, multiple words, arrow keys,
+Enter and Escape. The HTML book list also makes every book selectable without
+canvas interaction. Discovery visits clusters and ISBN-sorted books with start,
+pause, resume, previous, next and stop controls; manual camera input and hidden
+tabs pause it. Reduced motion disables rotation, floating and extended flights.
+
+Planets and halos use shared instanced geometry, links are batched, labels are
+bounded and culled, and device pixel ratio is capped. ResizeObserver refits on
+aspect changes. The renderer owns and releases listeners, controls, labels,
+observers, animation loops, geometry, materials and WebGL resources. Missing WebGL,
+initialization failure and context loss show an operable searchable HTML fallback.
+On phones details appear as a bottom sheet. Frame rate remains device-dependent;
+the 1,000-book logic tests are not a GPU benchmark.
+
+```sh
+npm run build
+npx playwright test tests/universe-data.spec.ts tests/book-universe.spec.ts --workers=1
+```
+
+Tests use the existing Playwright runner, including browser-independent logic
+tests, actual WebGL picking and flight, keyboard search, details/edit refresh,
+mobile fallback, context loss and repeated route cleanup. Chromium tests explicitly
+enable SwiftShader for headless machines. See the upstream
+[InstancedMesh](https://threejs.org/docs/pages/InstancedMesh.html) and
+[OrbitControls](https://threejs.org/docs/pages/OrbitControls.html) documentation.
+
 ### Random reading idea
 
 The dice button in the header opens a dialog with a two-second 3D dice animation
