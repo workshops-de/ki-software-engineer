@@ -1,0 +1,3 @@
+interface:
+  display_name: "Requirements Interview"
+  short_description: "Step-by-step interview into a testable user story"

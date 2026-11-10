@@ -16,6 +16,7 @@ flowchart TD
     Routes --> List["BookListComponent: search actions, request state, retry"]
     Routes --> Details["BookDetailsComponent: route ID, loading, book, errors, retry"]
     List --> Item["BookItemComponent: book card and detail link"]
+    List --> Carousel["BookCarouselComponent: 3D covers, pointer/keyboard rotation, party animation"]
     List --> Client["BookApiClient: root-provided service"]
     Details --> Client
     Client --> Http["Angular HttpClient / RxJS Observable"]
@@ -54,6 +55,37 @@ The feature folder groups its UI, model, and API adapter together. The dependenc
 6. The external template tracks cards by `book.id`. Destroying the view unsubscribes through `AsyncPipe`, canceling both pending delays and active requests.
 
 The search input uses template-driven forms (`ngModel`). Search state is not synchronized with the URL or persisted when returning from details. `_limit` restricts the requested result count; no page navigation or offset is implemented.
+
+### Optional 3D carousel (Issue #1)
+
+The list component owns the list/carousel selection and passes the same successful search results to
+[BookCarouselComponent](./src/app/books/book-carousel.component.ts). Switching views makes no additional
+API request. Existing loading, error, retry, and successful-empty views remain shared. Selection is local
+and resets on return from details; no store, API change, or dependency was added.
+
+The presentation component uses CSS perspective and `preserve-3d` to arrange cover links in a circle.
+Titles remain in accessible link labels; titles and authors are not rendered as carousel captions.
+Missing and broken covers receive a neutral placeholder. Pointer Events handle mouse and touch dragging,
+with a movement threshold and a capture-phase click guard to prevent drag gestures from navigating.
+Vertical touch scrolling remains enabled. Arrow keys and explicit direction buttons rotate the carousel;
+keyboard focus brings the focused cover to the front. Links reuse `/books/:id`.
+
+While carousel view is selected, the list component recognizes `party` through a document key listener,
+including when the search input is focused and requests temporarily replace the carousel. Escape stops
+party mode. Switching to list resets both party state and partial sequences; destroying the list removes
+the Angular-managed listener. The carousel owns its animation frame and cancels it when party mode ends
+or the component is destroyed (including loading, errors, and navigation).
+
+Party rotation starts at 180 degrees per second and continuously accelerates by 90 degrees per second
+per second, with no speed ceiling. Each new party starts at the initial speed. Frame deltas are capped
+at 64 ms to avoid jumps after a background-tab pause. CSS particles and playful captions appear only
+during party mode. With `prefers-reduced-motion`, particles are static and rotation uses a lower initial
+speed (40 degrees per second) and acceleration (10 degrees per second per second).
+
+The external [template](./src/app/books/book-carousel.component.html) uses Tailwind for layout and
+controls; colocated [CSS](./src/app/books/book-carousel.component.css) handles the 3D transforms and
+particle animation. [Carousel browser tests](./tests/book-carousel.spec.ts) use mocked API responses;
+synthetic touch PointerEvents check touch handling, not physical device behavior.
 
 ### Book details
 

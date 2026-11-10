@@ -1,0 +1,4 @@
+interface:
+  display_name: 'TDD Blue Phase'
+  short_description: 'Refactor production code while keeping tests green'
+  default_prompt: 'Use $tdd-blue to refactor the completed user story implementation for clarity and maintainability, preserve its acceptance behavior, and verify that the relevant tests stay green.'

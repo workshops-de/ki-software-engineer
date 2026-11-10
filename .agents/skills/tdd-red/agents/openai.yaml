@@ -1,0 +1,4 @@
+interface:
+  display_name: 'TDD Red Phase'
+  short_description: 'Turn story acceptance criteria into failing tests'
+  default_prompt: 'Use $tdd-red to turn the GitHub user story acceptance criteria into runnable failing tests, one test case per Given/When/Then scenario, and stop before implementation.'

@@ -1,0 +1,4 @@
+interface:
+  display_name: 'TDD Green Phase'
+  short_description: 'Make acceptance tests pass with focused changes'
+  default_prompt: 'Use $tdd-green to implement the GitHub user story until its confirmed red-phase acceptance tests pass, preserve existing passing behavior, and stop before refactoring.'
