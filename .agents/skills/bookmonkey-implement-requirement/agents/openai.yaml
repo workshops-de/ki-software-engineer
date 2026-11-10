@@ -1,0 +1,5 @@
+interface:
+  display_name: 'BookMonkey-Anforderung umsetzen'
+  short_description: 'Anforderungen klären, umsetzen, testen und refaktorieren'
+policy:
+  allow_implicit_invocation: true
