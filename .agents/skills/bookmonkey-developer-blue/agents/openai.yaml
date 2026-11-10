@@ -1,0 +1,4 @@
+interface:
+  display_name: 'BookMonkey: Developer Blue Refactoring'
+  short_description: 'Grünen Produktcode verhaltenswahrend vereinfachen'
+  default_prompt: 'Nutze $bookmonkey-developer-blue für Issue #2: Prüfe die Verfahren in REFACTORING.md und vereinfache den grünen Produktcode unter Erhalt des Verhaltens und unveränderten Tests.'

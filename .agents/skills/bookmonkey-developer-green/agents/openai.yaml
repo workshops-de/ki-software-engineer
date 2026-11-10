@@ -1,0 +1,4 @@
+interface:
+  display_name: 'BookMonkey: Developer Green'
+  short_description: 'Rote Tests mit minimalem Produktcode erfüllen'
+  default_prompt: 'Nutze $bookmonkey-developer-green für Issue #2: Implementiere das fehlende Verhalten minimal, bis die vorhandenen Jasmine- und Playwright-Tests grün sind, ohne Tests oder Testhelfer zu ändern.'

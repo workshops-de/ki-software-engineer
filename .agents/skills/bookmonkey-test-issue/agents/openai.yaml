@@ -1,0 +1,4 @@
+interface:
+  display_name: 'BookMonkey: TDD-Tests aus Issue'
+  short_description: 'Issue-Kriterien mit Jasmine und Playwright testen'
+  default_prompt: 'Nutze $bookmonkey-test-issue für Issue #123: Erstelle Jasmine- und Playwright-Tests aus den Akzeptanzkriterien und überprüfe die Red-Phase vor der Implementierung.'
