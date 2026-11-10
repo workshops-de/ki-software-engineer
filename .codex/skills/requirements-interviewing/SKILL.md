@@ -75,6 +75,16 @@ Then [beobachtbares, eindeutig prüfbares Ergebnis]
 - Halte technische Hinweise getrennt von den fachlichen Kriterien. Kennzeichne ungeprüfte API-Fähigkeiten und Architekturannahmen ausdrücklich. Nenne nur tatsächlich geprüfte Pfade oder Quellen; leite aus installierten Paketen keine Architektur ab.
 - Halte das Ergebnis dem Umfang angemessen. Schreibe bei fehlenden offenen Punkten „Keine“ und lasse nicht benötigte technische Unterpunkte weg.
 
+## Labels für GitHub-Issues auswählen
+
+Rufe vor dem Anlegen eines GitHub-Issues die aktuellen Labels des Ziel-Repositories einschließlich ihrer Beschreibungen ab. Wähle passende vorhandene Labels anhand des abgestimmten Inhalts aus und zeige sie im abschließenden Issue-Entwurf mit an. Gib diese Labels beim Anlegen mit.
+
+- Orientiere dich an den Beschreibungen im Ziel-Repository. Für BookMonkey gilt als Abgrenzung: `feature` für neue Produktfunktionen, `enhancement` für Verbesserungen bestehender Funktionen, `bug` für Fehlverhalten und `documentation` für Dokumentationsarbeit.
+- Ergänze `accessibility`, wenn Barrierefreiheit ein Schwerpunkt ist.
+- Vergib `good first issue` nur bei begründeter Eignung für Einsteiger und `help wanted` nur bei ausdrücklich gewünschter Unterstützung.
+- Setze `duplicate`, `invalid` und `wontfix` nicht vorsorglich.
+- Erstelle keine neuen Labels ohne Auftrag. Benenne bei fehlendem Zugriff die Einschränkung und erfinde keine Labels.
+
 ## Gemeinsames Verständnis abschließen
 
 Prüfe den Entwurf auf Konsistenz zwischen Nutzen, Umfang und Kriterien sowie auf verbleibende Entscheidungen, die Tests oder Implementierung verändern würden. Lege den konkreten Entwurf zur Abstimmung vor und frage gezielt nach Korrekturen oder Bestätigung. Überarbeite ihn anhand der Antwort; frage bereits bestätigte Inhalte nicht erneut ab.
