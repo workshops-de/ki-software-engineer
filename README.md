@@ -62,6 +62,18 @@ Book details use `GET /books/:isbn`; editing sends the full book to `PUT /books/
 including its unchanged `id`, `userId`, and ISBN. `price` remains a string.
 See the [Bookmonkey API documentation](https://www.npmjs.com/package/bookmonkey-api).
 
+### ISBN validation
+
+`isValidIsbn(value)` in `src/app/books/isbn.ts` checks ISBN-10 and ISBN-13 format
+and checksums. It accepts whitespace, hyphens, and a final `X` or `x` for ISBN-10;
+ISBN-13 requires a `978` or `979` prefix. Empty strings, other characters, wrong
+lengths, and incorrect check digits return `false`. It does not verify registration,
+separator placement, or whether a book exists. The function is independent of the
+editor, where the ISBN remains read-only and is preserved as the API key.
+
+Run `npx playwright test tests/isbn.spec.ts --project=chromium` for the function
+tests using the existing Playwright runner; these tests do not launch a browser.
+
 ### Book details checks
 
 ```sh
