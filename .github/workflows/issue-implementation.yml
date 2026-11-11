@@ -39,7 +39,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          token: ${{ env.GH_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           ref: ${{ github.sha }}
           persist-credentials: false
 
@@ -49,7 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          github-token: ${{ env.GH_TOKEN }}
+          github-token: ${{ secrets.PAT_TOKEN }}
           script: |
             const fs = require('node:fs');
             const path = require('node:path');
@@ -205,7 +205,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          token: ${{ env.GH_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           ref: ${{ needs.implement.outputs.base_sha }}
           persist-credentials: false
 
@@ -324,7 +324,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          token: ${{ env.GH_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           ref: ${{ needs.implement.outputs.base_sha }}
           persist-credentials: false
 
@@ -339,7 +339,7 @@ jobs:
           ISSUE_DIGEST: ${{ needs.implement.outputs.digest }}
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          github-token: ${{ env.GH_TOKEN }}
+          github-token: ${{ secrets.PAT_TOKEN }}
           script: |
             const crypto = require('node:crypto');
             const { spawnSync } = require('node:child_process');
