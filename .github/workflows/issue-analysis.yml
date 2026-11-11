@@ -43,11 +43,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          codex-home: ${{ runner.temp }}/codex-issue-analysis
-          permission-profile: issue-analysis
-          model: 'gpt-5.6-luna'
+          permission-profile: ":workspace"
+          model: "gpt-5.6-luna"
+          codex-args: >-
+            -c sandbox_workspace_write.network_access=true
           prompt: |
-            /ci-re-review
+            $ci-re-review
                          
             REPOSITORY: ${{ github.repository }}
             ISSUE_NUMBER: ${{ github.event.issue.number || github.event.comment.issue_url }}
