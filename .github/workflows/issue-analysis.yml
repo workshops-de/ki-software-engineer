@@ -22,7 +22,6 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          github-token: ${{secrets.GITHUB_TOKEN}}
           model: "gpt-5.6-luna"
           prompt: |
             $ci-re-review
