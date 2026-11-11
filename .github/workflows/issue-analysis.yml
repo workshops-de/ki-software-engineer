@@ -107,7 +107,7 @@ jobs:
           allow-users: Carolin724
           allow-bots: false
           # API-key authentication; GPT-5 shutdown is announced for 2026-12-11.
-          model: gpt-5
+          model: gpt-5.5
           effort: medium
           output-schema: |
             {
