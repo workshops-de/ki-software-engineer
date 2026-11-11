@@ -1,0 +1,30 @@
+name: Issue Analysis with Claude
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+
+jobs:
+  analyze-issue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Analyze Issue with Claude
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          prompt: |
+            /ci-re-review
+                          
+            REPOSITORY: ${{ github.repository }}
+            ISSUE_NUMBER: ${{ github.event.issue.number || github.event.comment.issue_url }}
