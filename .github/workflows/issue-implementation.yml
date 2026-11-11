@@ -415,7 +415,19 @@ jobs:
             const git = (args, input) => {
               const r = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args],
                 { input, encoding: 'utf8', maxBuffer: 1024 * 1024 });
-              if (r.status !== 0) throw new Error('Git validation failed: ' + args[0]);
+              if (r.status !== 0) {
+                const stderr = r.stderr ?? '';
+                const reason = /corrupt patch|malformed patch|unrecognized input/i.test(stderr)
+                  ? 'INVALID_PATCH_FORMAT'
+                  : /does not apply|patch failed|already exists/i.test(stderr)
+                    ? 'PATCH_DOES_NOT_APPLY'
+                    : /No such file|not a git repository/i.test(stderr)
+                      ? 'INVALID_REPOSITORY_PATH'
+                      : 'UNKNOWN_GIT_ERROR';
+                throw new Error(
+                  `Git validation failed [${reason}]: ${args[0]} (exit code ${r.status ?? 'unknown'})`
+                );
+              }
               return r.stdout;
             };
             const testPath = 'tests/issue-' + process.env.ISSUE_NUMBER + '.spec.ts';
