@@ -1,0 +1,139 @@
+:host {
+  display: block;
+}
+
+.carousel {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 60%, #dbeafe, #f8fafc 65%);
+}
+
+.stage {
+  position: relative;
+  height: 390px;
+  perspective: 950px;
+  touch-action: pan-y;
+  user-select: none;
+  cursor: grab;
+}
+
+.stage:active {
+  cursor: grabbing;
+}
+
+.orbit {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  width: 148px;
+  height: 214px;
+  margin: -107px 0 0 -74px;
+  transform-style: preserve-3d;
+  transform: translateZ(calc(-1 * var(--radius))) rotateY(var(--rotation));
+}
+
+.cover {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(var(--position)) translateZ(var(--radius));
+  /* Keep pointer hit testing in the same depth order as the rotating covers. */
+  z-index: calc(1000 * cos(var(--position) + var(--rotation)));
+  backface-visibility: hidden;
+  border-radius: 4px 9px 9px 4px;
+  background: #e2e8f0;
+  box-shadow:
+    -5px 0 0 #94a3b8,
+    0 18px 25px -10px #0f172a66;
+  -webkit-user-drag: none;
+}
+
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.placeholder {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  color: #475569;
+  font-size: 12px;
+  background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+  border-radius: inherit;
+}
+
+.placeholder span:first-child {
+  font-size: 48px;
+  color: #2563eb;
+}
+
+.party {
+  background: radial-gradient(ellipse at 50% 60%, #4338ca, #0f172a 75%);
+}
+
+.party p,
+.party .text-slate-500 {
+  color: #e0e7ff;
+}
+
+.cheer {
+  position: absolute;
+  top: calc(100% + 15px);
+  left: -15%;
+  width: 130%;
+  text-align: center;
+  color: #fef08a;
+  font-size: 24px;
+  font-weight: 800;
+  text-shadow: 0 2px 8px #0f172a;
+}
+
+.sparks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.spark {
+  position: absolute;
+  top: 62%;
+  left: 50%;
+  width: 4px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fef08a;
+  box-shadow: 0 0 10px #fb923c;
+  animation: spray 1s var(--delay) linear infinite;
+}
+
+@keyframes spray {
+  from {
+    transform: rotate(var(--angle)) translateY(-30px) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: rotate(var(--angle)) translateY(calc(-1 * var(--distance))) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .stage {
+    height: 340px;
+    perspective: 700px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spark {
+    animation: none;
+    transform: rotate(var(--angle)) translateY(calc(-1 * var(--distance)));
+    opacity: 0.65;
+  }
+}

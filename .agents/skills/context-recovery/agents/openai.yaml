@@ -1,0 +1,3 @@
+interface:
+  display_name: 'Context Recovery'
+  short_description: 'Recover the active issue and implementation requirements'

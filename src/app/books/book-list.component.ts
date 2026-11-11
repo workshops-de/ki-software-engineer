@@ -1,124 +1,86 @@
-import { CommonModule } from '@angular/common';
-import { Component, Input, OnInit } from '@angular/core';
+import { AsyncPipe } from '@angular/common';
+import { Component, inject, Input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { catchError, distinctUntilChanged, map, of, startWith, Subject, switchMap, timer } from 'rxjs';
 import { Book } from './book';
 import { BookApiClient } from './book-api-client.service';
 import { BookItemComponent } from './book-item.component';
+import { BookCarouselComponent } from './book-carousel.component';
+
+type BookListState = { status: 'loading' } | { status: 'success'; books: Book[] } | { status: 'error' };
+
+interface BookListAction {
+  type: 'search' | 'clear' | 'retry' | 'initial';
+  term: string;
+}
 
 @Component({
   selector: 'app-book-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, BookItemComponent],
-  template: `
-    <div class="container mx-auto px-4 py-12 max-w-7xl">
-      <h1 class="text-3xl font-bold mb-10 text-blue-700 border-b pb-4 border-gray-200">Book Collection</h1>
-
-      <div class="mb-6">
-        <div class="flex items-center border-b-2 border-gray-300 py-2">
-          <input
-            type="text"
-            [(ngModel)]="searchTerm"
-            (ngModelChange)="onSearchChange()"
-            placeholder="Search for books..."
-            class="appearance-none bg-transparent border-none w-full text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none"
-          />
-          <button *ngIf="searchTerm" (click)="clearSearch()" class="flex-shrink-0 text-gray-500 hover:text-gray-700">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div *ngIf="loading" class="flex justify-center items-center py-20">
-        <div class="animate-pulse flex flex-col items-center">
-          <div
-            class="h-16 w-16 rounded-full border-4 border-t-blue-700 border-r-blue-700 border-b-gray-200 border-l-gray-200 animate-spin"
-          ></div>
-          <p class="mt-4 text-gray-600">Loading books...</p>
-        </div>
-      </div>
-
-      <div *ngIf="!loading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-        <app-book-item *ngFor="let book of books; trackBy: trackById" [book]="book"></app-book-item>
-
-        <div
-          *ngIf="books.length === 0"
-          class="col-span-full flex flex-col items-center justify-center py-16 text-center bg-gray-50 rounded-xl"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-16 w-16 text-gray-400 mb-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-            />
-          </svg>
-          <p class="text-xl font-medium text-gray-600 mb-2">
-            {{ searchTerm ? 'No books match your search' : 'No books available' }}
-          </p>
-          <p class="text-gray-500">
-            {{ searchTerm ? 'Try different search terms or clear the search' : 'Check back later' }}
-          </p>
-          <button
-            *ngIf="searchTerm"
-            (click)="clearSearch()"
-            class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-200"
-          >
-            Clear Search
-          </button>
-        </div>
-      </div>
-    </div>
-  `
+  imports: [AsyncPipe, FormsModule, BookItemComponent, BookCarouselComponent],
+  templateUrl: './book-list.component.html',
+  host: { '(document:keydown)': 'onDocumentKeydown($event)' }
 })
-export class BookListComponent implements OnInit {
-  @Input() pageSize: number = 10;
-  books: Book[] = [];
-  loading: boolean = true;
-  searchTerm: string = '';
-  searchTimeout: any;
+export class BookListComponent {
+  private readonly bookApiClient = inject(BookApiClient);
+  private readonly actions = new Subject<BookListAction>();
 
-  constructor(private bookApiClient: BookApiClient) {}
+  @Input() pageSize = 10;
+  searchTerm = '';
+  view: 'list' | 'carousel' = 'list';
+  partyMode = false;
+  private partySequence = '';
 
-  ngOnInit(): void {
-    this.loadBooks();
-  }
+  readonly state$ = this.actions.pipe(
+    startWith<BookListAction>({ type: 'initial', term: '' }),
+    distinctUntilChanged((previous, current) => current.type === 'search' && previous.term === current.term),
+    // Switch before the delay: a new action cancels both debounce and in-flight HTTP immediately.
+    switchMap(action =>
+      (action.type === 'search' ? timer(300) : of(0)).pipe(
+        switchMap(() => this.bookApiClient.getBooks(this.pageSize, action.term)),
+        map((books): BookListState => ({ status: 'success', books })),
+        catchError(() => of<BookListState>({ status: 'error' })),
+        startWith<BookListState>({ status: 'loading' })
+      )
+    )
+  );
 
-  private loadBooks(search?: string): void {
-    this.loading = true;
-    this.bookApiClient.getBooks(this.pageSize, search).subscribe({
-      next: books => {
-        this.books = books;
-        this.loading = false;
-      },
-      error: error => {
-        console.error('Error fetching books:', error);
-        this.loading = false;
-      }
-    });
-  }
-
-  onSearchChange(): void {
-    // Debounce search to avoid too many API calls while typing
-    clearTimeout(this.searchTimeout);
-    this.searchTimeout = setTimeout(() => {
-      this.loadBooks(this.searchTerm);
-    }, 300);
+  onSearchChange(term: string): void {
+    this.searchTerm = term;
+    this.actions.next({ type: 'search', term });
   }
 
   clearSearch(): void {
     this.searchTerm = '';
-    this.loadBooks();
+    this.actions.next({ type: 'clear', term: '' });
   }
 
-  trackById(index: number, book: Book): string {
-    return book.id;
+  retry(): void {
+    this.actions.next({ type: 'retry', term: this.searchTerm });
+  }
+
+  selectView(view: 'list' | 'carousel'): void {
+    this.view = view;
+    this.partyMode = false;
+    this.partySequence = '';
+  }
+
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (this.view !== 'carousel') return;
+    if (event.key === 'Escape') {
+      this.partyMode = false;
+      this.partySequence = '';
+      return;
+    }
+    if (event.ctrlKey || event.altKey || event.metaKey || event.isComposing || event.repeat) return;
+    if (event.key.length !== 1) {
+      this.partySequence = '';
+      return;
+    }
+    this.partySequence = (this.partySequence + event.key.toLowerCase()).slice(-5);
+    if (this.partySequence === 'party') {
+      this.partyMode = true;
+      this.partySequence = '';
+    }
   }
 }
