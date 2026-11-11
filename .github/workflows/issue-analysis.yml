@@ -1,4 +1,4 @@
-name: Issue Analysis with Claude
+name: Issue Analysis with Codex
 
 on:
   issues:
@@ -24,7 +24,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           permission-profile: ":workspace"
           prompt: |
-            /ci-re-review
+            $ci-re-review
                           
             REPOSITORY: ${{ github.repository }}
             ISSUE_NUMBER: ${{ github.event.issue.number || github.event.comment.issue_url }}
