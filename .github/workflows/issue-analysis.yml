@@ -5,7 +5,7 @@ on:
     types: [opened, edited]
   issue_comment:
     types: [created]
- 
+
 jobs:
   analyze-issue:
     runs-on: ubuntu-24.04
@@ -13,41 +13,43 @@ jobs:
     permissions:
       contents: read
       issues: write
- 
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
- 
-      - name: Configure Codex GitHub API access
-        env:
-          CODEX_CI_HOME: ${{ runner.temp }}/codex-issue-analysis
+
+      - name: Configure Codex
         run: |
-          mkdir -p "$CODEX_CI_HOME"
-          cat > "$CODEX_CI_HOME/config.toml" <<'EOF'
+          mkdir -p "$RUNNER_TEMP/codex-home"
+      
+          cat > "$RUNNER_TEMP/codex-home/config.toml" <<'EOF'
+          default_permissions = "github-issues"
+      
           [features]
           network_proxy = true
- 
-          [permissions.issue-analysis]
+      
+          [permissions.github-issues]
           extends = ":workspace"
- 
-          [permissions.issue-analysis.network]
+      
+          [permissions.github-issues.network]
           enabled = true
- 
-          [permissions.issue-analysis.network.domains]
+      
+          [permissions.github-issues.network.domains]
           "api.github.com" = "allow"
           EOF
- 
-      - name: Analyze Issue with OpenAI
+
+      - name: Analyze Issue with Codex
         uses: openai/codex-action@v1
         env:
           GH_TOKEN: ${{ github.token }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          codex-home: ${{ runner.temp }}/codex-issue-analysis
-          permission-profile: issue-analysis
-          model: 'gpt-5.6-luna'
+          codex-home: ${{ runner.temp }}/codex-home
+          permission-profile: github-issues
+          safety-strategy: drop-sudo
+          model: "gpt-5.6-luna"
           prompt: |
-            $ci-re-review
-                         
+            /ci-re-review
+                          
             REPOSITORY: ${{ github.repository }}
             ISSUE_NUMBER: ${{ github.event.issue.number || github.event.comment.issue_url }}
