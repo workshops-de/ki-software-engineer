@@ -1,0 +1,74 @@
+name: Codex Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  codex-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Codex
+        run: |
+          mkdir -p "$RUNNER_TEMP/codex-home"
+          cat > "$RUNNER_TEMP/codex-home/config.toml" <<'EOF'
+          default_permissions = "github-review"
+
+          [features]
+          network_proxy = true
+
+          [permissions.github-review]
+          extends = ":workspace"
+
+          [permissions.github-review.network]
+          enabled = true
+
+          [permissions.github-review.network.domains]
+          "api.github.com" = "allow"
+          EOF
+
+      - name: Run Codex Code Review
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          codex-home: ${{ runner.temp }}/codex-home
+          permission-profile: github-review
+          safety-strategy: drop-sudo
+          model: 'gpt-5.6-luna'
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Please review this pull request and provide feedback on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Performance considerations
+            - Security concerns
+            - Test coverage
+
+            Read the PR description and diff with `gh pr view "$PR_NUMBER"` and
+            `gh pr diff "$PR_NUMBER"`, then inspect the relevant source files.
+
+            Follow the repository's AGENTS.md files for style and conventions.
+            Report actionable findings with file locations, consequences, and suggested fixes.
+            Distinguish verified findings from assumptions and untested behavior.
+            Do not modify repository files or implement fixes.
+
+            Create a temporary file with `REVIEW_FILE=$(mktemp)`, write your review
+            to that file, and publish it with
+            `gh pr comment "$PR_NUMBER" --body-file "$REVIEW_FILE"`.
