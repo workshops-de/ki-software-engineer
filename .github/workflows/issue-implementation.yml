@@ -107,9 +107,8 @@ jobs:
             const codexHome = path.join(process.env.RUNNER_TEMP, 'codex-issue-implementation');
             fs.mkdirSync(codexHome, { recursive: true, mode: 0o700 });
             const workspace = fs.realpathSync(process.env.GITHUB_WORKSPACE);
-            const writableDirectories = ['src/app/books', 'src/app/shared', 'tests'];
-            const writableFiles = ['src/app/app.ts', 'src/app/app.html', 'src/app/app.css',
-              'src/app/app.routes.ts', 'src/styles.css'];
+            const writableDirectories = ['src', 'tests'];
+            const writableFiles = [];
             // Use concrete paths, not :workspace's symbolic metadata rules: Linux
             // can expand those below file write grants (e.g. styles.css/.git).
             // Keep metadata read-only at actual directory roots, never below files.
