@@ -1,0 +1,4 @@
+interface:
+  display_name: "Developer Green"
+  short_description: "Implements minimal code to make RED tests pass"
+  default_prompt: "Use $developer-green to implement the minimum production code required by these verified failing tests and prove the complete suite is green."

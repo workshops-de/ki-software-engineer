@@ -1,0 +1,4 @@
+interface:
+  display_name: "Developer Blue"
+  short_description: "Refactors green Angular code without behavior changes"
+  default_prompt: "Use $developer-blue to refactor this green Angular implementation according to the project's architecture and SOLID principles while preserving behavior."

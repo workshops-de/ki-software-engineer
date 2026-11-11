@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scaffold RED Tests"
+  short_description: "Creates approved failing tests from acceptance criteria"
+  default_prompt: "Use $scaffolding-red-tests to propose RED-phase tests for my approved user story, then wait for my execution choice."

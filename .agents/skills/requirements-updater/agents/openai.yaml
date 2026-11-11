@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirements Updater"
+  short_description: "Verifies delivery and closes GitHub issues safely"
+  default_prompt: "Use $requirements-updater to reconcile this implementation with its GitHub issue, verify delivery, and prepare closure."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirements Interviewer"
+  short_description: "Turns rough ideas into testable requirements"
+  default_prompt: "Use $requirements-interviewer to clarify my rough feature idea and produce an implementation-ready user story."
