@@ -13,22 +13,41 @@ jobs:
     permissions:
       contents: read
       issues: write
-
+ 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Analyze Issue with Codex
+ 
+      - name: Configure Codex GitHub API access
+        env:
+          CODEX_CI_HOME: ${{ runner.temp }}/codex-issue-analysis
+        run: |
+          mkdir -p "$CODEX_CI_HOME"
+          cat > "$CODEX_CI_HOME/config.toml" <<'EOF'
+          [features]
+          network_proxy = true
+ 
+          [permissions.issue-analysis]
+          extends = ":workspace"
+ 
+          [permissions.issue-analysis.network]
+          enabled = true
+ 
+          [permissions.issue-analysis.network.domains]
+          "api.github.com" = "allow"
+          EOF
+ 
+      - name: Analyze Issue with OpenAI
         uses: openai/codex-action@v1
         env:
           GH_TOKEN: ${{ github.token }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          codex-home: ${{ runner.temp }}/codex-issue-analysis
+          permission-profile: issue-analysis
           model: 'gpt-5.6-luna'
-          sandbox: workspace-write
-          codex-args: '["-c", "sandbox_workspace_write.network_access=true"]'
           prompt: |
-            $ci-re-review
-                          
+            /ci-re-review
+                         
             REPOSITORY: ${{ github.repository }}
-            ISSUE_NUMBER: ${{ github.event.issue.number }}
+            ISSUE_NUMBER: ${{ github.event.issue.number || github.event.comment.issue_url }}
