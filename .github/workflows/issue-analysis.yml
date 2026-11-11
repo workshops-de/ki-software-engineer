@@ -18,11 +18,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Analyze Issue with Claude
+      - name: Analyze Issue with Codex
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          github-token: ${{secrets.GITHUB_TOKEN}}
           permission-profile: ":workspace"
+          model: "gpt-5.6-luna"
           prompt: |
             $ci-re-review
                           
