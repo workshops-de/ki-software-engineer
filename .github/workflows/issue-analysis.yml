@@ -1,4 +1,4 @@
-name: Automatic issue analysis with Codex
+name: Issue Analysis with OpenAI
 
 on:
   issues:
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  analyze:
+  analyze-issue:
     # Preserve the owner's allowlist. Never send public/bot-triggered input to a paid agent.
     if: >-
       github.event.issue.pull_request == null &&
@@ -32,7 +32,7 @@ jobs:
         (github.event.comment.user.login == 'Carolin724' &&
          github.event.comment.user.type == 'User' &&
          github.event.comment.body != '/codex'))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -93,21 +93,40 @@ jobs:
               })),
               context_truncated: truncated
             };
-            fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'issue-analysis-context.json'),
-              JSON.stringify(data), { encoding: 'utf8', mode: 0o600 });
+            const contextFile = path.join(process.env.RUNNER_TEMP, 'issue-analysis-context.json');
+            fs.writeFileSync(contextFile, JSON.stringify(data), { encoding: 'utf8', mode: 0o600 });
+            // Only preparation/publication use GitHub. Agent commands need no network or writes.
+            const codexHome = path.join(process.env.RUNNER_TEMP, 'codex-issue-analysis');
+            fs.mkdirSync(codexHome, { recursive: true, mode: 0o700 });
+            const config = [
+              'default_permissions = "issue-analysis"',
+              '',
+              '[permissions.issue-analysis.filesystem]',
+              '":minimal" = "read"',
+              JSON.stringify(contextFile) + ' = "read"',
+              '',
+              '[permissions.issue-analysis.filesystem.":workspace_roots"]',
+              '"." = "read"',
+              '',
+              '[permissions.issue-analysis.network]',
+              'enabled = false',
+              ''
+            ].join('\n');
+            fs.writeFileSync(path.join(codexHome, 'config.toml'), config,
+              { encoding: 'utf8', mode: 0o600 });
 
       # Last step in this job. No publishing code runs in the agent's environment.
-      - name: Analyze requirements with GPT-5
+      - name: Analyze requirements with GPT-5.6 Luna
         id: codex
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          permission-profile: ':workspace'
+          codex-home: ${{ runner.temp }}/codex-issue-analysis
+          permission-profile: issue-analysis
           safety-strategy: drop-sudo
           allow-users: Carolin724
           allow-bots: false
-          # API-key authentication; GPT-5 shutdown is announced for 2026-12-11.
-          model: gpt-5.5
+          model: gpt-5.6-luna
           effort: medium
           output-schema: |
             {
@@ -129,6 +148,11 @@ jobs:
               }
             }
           prompt: |
+            $ci-re-review
+
+            REPOSITORY: `${{ github.repository }}`
+            ISSUE_NUMBER: `${{ github.event.issue.number }}`
+
             Analysiere das GitHub-Issue anhand der Projektregeln. Antworte auf Deutsch.
             Verwende den Skill ci-re-review: Lies .agents/skills/ci-re-review/SKILL.md.
             Lies AGENTS.md, README.md und ARCHITECTURE.md, soweit vorhanden, und die
@@ -159,9 +183,9 @@ jobs:
             Die Veroeffentlichung und Label-Auswahl erfolgen separat durch festen Workflow-Code.
 
   publish:
-    needs: analyze
-    if: needs.analyze.result == 'success' && needs.analyze.outputs.final_message != ''
-    runs-on: ubuntu-latest
+    needs: analyze-issue
+    if: needs.analyze-issue.result == 'success' && needs.analyze-issue.outputs.final_message != ''
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       issues: write
@@ -170,9 +194,9 @@ jobs:
       - name: Validate and publish the report and existing readiness labels
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
-          CODEX_REPORT: ${{ needs.analyze.outputs.final_message }}
-          CONTEXT_DIGEST: ${{ needs.analyze.outputs.context_digest }}
-          CONTEXT_TRUNCATED: ${{ needs.analyze.outputs.context_truncated }}
+          CODEX_REPORT: ${{ needs.analyze-issue.outputs.final_message }}
+          CONTEXT_DIGEST: ${{ needs.analyze-issue.outputs.context_digest }}
+          CONTEXT_TRUNCATED: ${{ needs.analyze-issue.outputs.context_truncated }}
         with:
           github-token: ${{ github.token }}
           script: |
@@ -247,7 +271,7 @@ jobs:
               'Empfohlenes Label: `' + desiredLabel + '`.', '',
               ...(process.env.CONTEXT_TRUNCATED === 'true'
                 ? ['Hinweis: Der Issue-Kontext war gekuerzt; eine vollstaendige Pruefung steht aus.', ''] : []),
-              '_Automated analysis by OpenAI Codex (gpt-5). Vorschlag zur menschlichen Pruefung._'
+              '_Automated analysis by OpenAI Codex (gpt-5.6-luna). Vorschlag zur menschlichen Pruefung._'
             ].join('\n');
             if (body.length > 60000) throw new Error('Rendered comment exceeds the size limit');
             // Only our own marked bot comment can be updated; human marker spoofs are ignored.
