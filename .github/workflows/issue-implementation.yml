@@ -56,86 +56,220 @@ jobs:
             const path = require('node:path');
             const crypto = require('node:crypto');
             const { execFileSync } = require('node:child_process');
+
             const { issue: eventIssue, label, sender } = context.payload;
+
             core.setOutput('proceed', 'false');
-            if (context.eventName !== 'issues' || context.payload.action !== 'labeled' ||
-                label.name !== 'ready-for-implementation' || eventIssue.pull_request ||
-                eventIssue.user.login !== 'Carolin724' || sender.type !== 'User' ||
-                context.actor !== 'Carolin724' || process.env.GITHUB_TRIGGERING_ACTOR !== 'Carolin724') {
+
+            if (
+              context.eventName !== 'issues' ||
+              context.payload.action !== 'labeled' ||
+              label.name !== 'ready-for-implementation' ||
+              eventIssue.pull_request ||
+              eventIssue.user.login !== 'Carolin724' ||
+              sender.type !== 'User' ||
+              context.actor !== 'Carolin724' ||
+              process.env.GITHUB_TRIGGERING_ACTOR !== 'Carolin724'
+            ) {
               throw new Error('Unauthorized implementation trigger');
             }
-            const params = { ...context.repo, issue_number: eventIssue.number };
+
+            const params = {
+              ...context.repo,
+              issue_number: eventIssue.number
+            };
+
             const { data: issue } = await github.rest.issues.get(params);
-            if (issue.pull_request || issue.user.login !== 'Carolin724' || issue.state !== 'open' ||
-                !issue.labels.some(l => l.name === 'ready-for-implementation')) {
+
+            if (
+              issue.pull_request ||
+              issue.user.login !== 'Carolin724' ||
+              issue.state !== 'open' ||
+              !issue.labels.some(l => l.name === 'ready-for-implementation')
+            ) {
               core.notice('Issue is no longer eligible; nothing will be published.');
               return;
             }
+
             const prefix = 'feature/' + issue.number + '-';
-            const prs = await github.paginate(github.rest.pulls.list,
-              { ...context.repo, state: 'all', per_page: 100 });
-            const existingPR = prs.find(pr => pr.head.repo?.full_name === context.payload.repository.full_name &&
-              (pr.head.ref.startsWith(prefix) || pr.body?.includes('<!-- codex-implementation:' + issue.number + ' -->')));
+
+            const prs = await github.paginate(
+              github.rest.pulls.list,
+              {
+                ...context.repo,
+                state: 'all',
+                per_page: 100
+              }
+            );
+
+            const existingPR = prs.find(
+              pr =>
+                pr.head.repo?.full_name === context.payload.repository.full_name &&
+                (
+                  pr.head.ref.startsWith(prefix) ||
+                  pr.body?.includes(
+                    '<!-- codex-implementation:' + issue.number + ' -->'
+                  )
+                )
+            );
+
             if (existingPR) {
-              core.notice('Existing PR requires human follow-up: ' + existingPR.html_url);
+              core.notice(
+                'Existing PR requires human follow-up: ' + existingPR.html_url
+              );
               return;
             }
+
             let existingBranches = [];
+
             try {
-              const result = await github.rest.git.listMatchingRefs({ ...context.repo, ref: 'heads/' + prefix });
+              const result = await github.rest.git.listMatchingRefs({
+                ...context.repo,
+                ref: 'heads/' + prefix
+              });
+
               existingBranches = result.data;
-            } catch (error) { if (error.status !== 404) throw error; }
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
             if (existingBranches.length) {
-              core.notice('Existing feature branch preserved; inspect it before retrying this issue.');
+              core.notice(
+                'Existing feature branch preserved; inspect it before retrying this issue.'
+              );
               return;
             }
-            const slug = issue.title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
-              .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-              .slice(0, 60).replace(/-$/g, '') || 'issue';
+
+            const slug =
+              issue.title
+                .normalize('NFKD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '')
+                .slice(0, 60)
+                .replace(/-$/g, '') || 'issue';
+
             const branch = prefix + slug;
-            const comments = (await github.paginate(github.rest.issues.listComments,
-              { ...params, per_page: 100 })).filter(c => c.user?.type === 'User');
-            const snapshot = JSON.stringify({ title: issue.title, body: issue.body,
-              comments: comments.map(c => ({ id: c.id, updated_at: c.updated_at, body: c.body })) });
-            if (Buffer.byteLength(snapshot, 'utf8') > 100000) throw new Error('Issue discussion is too large for automatic implementation');
-            const clean = text => String(text ?? '').replace(/<!--[\s\S]*?(?:-->|$)/g, '')
-              .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '');
-            const contextFile = path.join(process.env.RUNNER_TEMP, 'implementation-issue.json');
-            fs.writeFileSync(contextFile, JSON.stringify({ trust: 'UNTRUSTED ISSUE DATA',
-              number: issue.number, title: clean(issue.title), body: clean(issue.body),
-              comments: comments.map(c => ({ id: c.id, body: clean(c.body) })) }), { mode: 0o600 });
-            const codexHome = path.join(process.env.RUNNER_TEMP, 'codex-issue-implementation');
-            fs.mkdirSync(codexHome, { recursive: true, mode: 0o700 });
-            const workspace = fs.realpathSync(process.env.GITHUB_WORKSPACE);
-            const writableDirectories = ['src', 'tests'];
-            const writableFiles = [];
-            // Use concrete paths, not :workspace's symbolic metadata rules: Linux
-            // can expand those below file write grants (e.g. styles.css/.git).
-            // Keep metadata read-only at actual directory roots, never below files.
-            const readOnlyMetadata = ['', ...writableDirectories].flatMap(directory =>
-              ['.git', '.agents', '.codex', '.aws'].map(name =>
-                path.join(workspace, directory, name)));
+
+            const comments = (
+              await github.paginate(
+                github.rest.issues.listComments,
+                {
+                  ...params,
+                  per_page: 100
+                }
+              )
+            ).filter(c => c.user?.type === 'User');
+
+            const snapshot = JSON.stringify({
+              title: issue.title,
+              body: issue.body,
+              comments: comments.map(c => ({
+                id: c.id,
+                updated_at: c.updated_at,
+                body: c.body
+              }))
+            });
+
+            if (Buffer.byteLength(snapshot, 'utf8') > 100000) {
+              throw new Error(
+                'Issue discussion is too large for automatic implementation'
+              );
+            }
+
+            const clean = text =>
+              String(text ?? '')
+                .replace(/<!--[\s\S]*?(?:-->|$)/g, '')
+                .replace(
+                  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g,
+                  ''
+                );
+
+            const contextFile = path.join(
+              process.env.RUNNER_TEMP,
+              'implementation-issue.json'
+            );
+
+            fs.writeFileSync(
+              contextFile,
+              JSON.stringify({
+                trust: 'UNTRUSTED ISSUE DATA',
+                number: issue.number,
+                title: clean(issue.title),
+                body: clean(issue.body),
+                comments: comments.map(c => ({
+                  id: c.id,
+                  body: clean(c.body)
+                }))
+              }),
+              { mode: 0o600 }
+            );
+
+            const codexHome = path.join(
+              process.env.RUNNER_TEMP,
+              'codex-issue-implementation'
+            );
+
+            fs.mkdirSync(codexHome, {
+              recursive: true,
+              mode: 0o700
+            });
+
+            // Codex permissions based on the workshop configuration.
             const config = [
               'default_permissions = "issue-implementation"',
+
+              '[features]',
+              'network_proxy = true',
+
               '[permissions.issue-implementation]',
-              'extends = ":read-only"',
-              '[permissions.issue-implementation.filesystem]',
-              JSON.stringify(workspace) + ' = "read"',
-              JSON.stringify(contextFile) + ' = "read"',
-              '":slash_tmp" = "write"',
-              '":tmpdir" = "write"',
-              ...[...writableDirectories, ...writableFiles].map(relative =>
-                JSON.stringify(path.join(workspace, relative)) + ' = "write"'),
-              ...readOnlyMetadata.map(metadata => JSON.stringify(metadata) + ' = "read"'),
+              'extends = ":workspace"',
+
               '[permissions.issue-implementation.network]',
-              'enabled = false', ''
+              'enabled = true',
+
+              '[permissions.issue-implementation.network.domains]',
+              '"api.github.com" = "allow"',
+              '"github.com" = "allow"',
+
+              '[permissions.issue-implementation.filesystem]',
+              '":workspace_roots" = { ".git" = "write" }',
+
+              // Allow Codex to read the prepared issue context.
+              JSON.stringify(contextFile) + ' = "read"',
+
+              ''
             ].join('\n');
-            fs.writeFileSync(path.join(codexHome, 'config.toml'), config, { mode: 0o600 });
-            // Compute the name only. A feature branch is created after successful verification.
+
+            fs.writeFileSync(
+              path.join(codexHome, 'config.toml'),
+              config,
+              { mode: 0o600 }
+            );
+
+            // Compute the name only. A feature branch is created
+            // after successful verification.
             core.setOutput('branch', branch);
-            core.setOutput('base_ref', context.payload.repository.default_branch);
-            core.setOutput('base_sha', execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());
-            core.setOutput('digest', crypto.createHash('sha256').update(snapshot).digest('hex'));
+            core.setOutput(
+              'base_ref',
+              context.payload.repository.default_branch
+            );
+            core.setOutput(
+              'base_sha',
+              execFileSync('git', ['rev-parse', 'HEAD'], {
+                encoding: 'utf8'
+              }).trim()
+            );
+            core.setOutput(
+              'digest',
+              crypto
+                .createHash('sha256')
+                .update(snapshot)
+                .digest('hex')
+            );
             core.setOutput('proceed', 'true');
 
       # Last step in the job. No GitHub token, PAT or package installation in the Codex step.
