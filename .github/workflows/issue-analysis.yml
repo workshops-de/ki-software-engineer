@@ -5,7 +5,7 @@ on:
     types: [opened, edited]
   issue_comment:
     types: [created]
-
+ 
 jobs:
   analyze-issue:
     runs-on: ubuntu-24.04
@@ -43,10 +43,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          permission-profile: ":workspace"
-          model: "gpt-5.6-luna"
-          codex-args: >-
-            -c sandbox_workspace_write.network_access=true
+          codex-home: ${{ runner.temp }}/codex-issue-analysis
+          permission-profile: issue-analysis
+          model: 'gpt-5.6-luna'
           prompt: |
             $ci-re-review
                          
