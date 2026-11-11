@@ -13,6 +13,7 @@ Bestätige die Lieferung anhand der vereinbarten Anforderungen und des tatsächl
 - Nutze vorhandenen Gesprächs- und Übergabekontext. Wenn Anforderungen oder Issue-Zuordnung fehlen, verwende bei Bedarf [context-recovery](../context-recovery/SKILL.md). Eine Issue-Nummer ist nur zusammen mit dem Repository eindeutig. Kläre fehlende oder widersprüchliche Entscheidungen, ohne unabhängige Prüfungen aufzuhalten.
 - Lies geltende `AGENTS.md`-Dateien, `README.md`, relevante Architekturhinweise sowie die aktuelle Test- und Build-Konfiguration. Prüfe Arbeitsbaum, Branch, relevante Änderungen und gegebenenfalls PR/Commit. Bewahre fremde und nicht versionierte Arbeit. Nenne ausdrücklich, ob du lokale Änderungen, einen Commit oder einen CI-Stand verifizierst; lokale Erfolge belegen keine Auslieferung.
 - Fehlt ein zugehöriges GitHub-Issue, prüfe die belegten Anforderungen trotzdem. Erfinde keine Zuordnung und lege kein neues Issue ohne Auftrag an. Berichte die fehlende Verknüpfung, statt eine erfolgte Issue-Aktualisierung zu behaupten.
+- Halte Repository, Branch, Commit-SHA und relevante lokale Änderungen als Prüfstand fest. Bestätige eine tatsächliche Bereitstellung nur mit einem Nachweis für die vereinbarte Zielumgebung und Version, etwa einem erfolgreichen Deployment-Lauf. Ist lediglich die lokale Implementierung verifiziert, benenne diesen Stand ausdrücklich.
 
 ## Umsetzung mit den Kriterien abgleichen
 

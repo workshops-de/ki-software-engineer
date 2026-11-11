@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Anforderungen finalisieren'
+  short_description: 'Akzeptanz prüfen, Tests ausführen und Issue abschließen'
+  default_prompt: 'Verwende $requirements-finalisation, um das implementierte Feature mit den ursprünglichen Akzeptanzkriterien abzugleichen, Tests und Build auszuführen und das zugehörige GitHub-Issue mit den Nachweisen zu aktualisieren und bei erfüllten Abschlussbedingungen zu schließen.'
