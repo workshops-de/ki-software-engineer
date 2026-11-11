@@ -28,6 +28,14 @@ Additional dependencies are declared but are not wired into the current applicat
 - `@angular/platform-server` and `@angular/ssr` (20.2.1), plus Express (5.1.0): there is no server entry point or SSR configuration in `angular.json`. These declarations do not make the current application server-rendered or provide its book API.
 - `@types/node` (^20.17.19) and `@types/express` (^5.0.1) provide development-time type definitions; their versions do not establish a required Node.js runtime version.
 
+## Issue automation
+
+`.github/workflows/issue-analysis.yml` runs `ci-re-review` through the Codex action. `.github/workflows/issue-implementation.yml` handles the `ready-for-implementation` label: it checks out a local `codex/issue-<number>` branch and sends `/ci-se-green` to `openai/codex-action@v1` with an explicit instruction to read `.agents/skills/ci-se-green/SKILL.md`. It supplies the repository, issue number, and actual branch as resolved context. Skill names are agent instructions, not shell executables. Runs for the same issue are serialized.
+
+The implementation job has read-only GitHub permissions. The Green agent reads issue context and existing CI failure evidence from `api.github.com`. It uses the `OPENAI_API_KEY2` secret and requires available API quota. Following the skill, it implements production code and creates local commits without running tests, builds, or lint. Missing prerequisite failure evidence must return `blocked`, which fails the result check rather than claiming implementation success.
+
+After an `implemented` result on the expected branch with a clean working tree, the workflow exports the commits using `git format-patch --binary`. The JSON result and patch are uploaded as a `ci-se-green-issue-<number>` artifact. The workflow does not push commits, open a pull request, or run application verification. A successful agent run is not evidence of passing application tests. Labels applied by another workflow's `GITHUB_TOKEN` do not trigger this label-event workflow; a user or another eligible token must apply the label.
+
 ## Structure and responsibilities
 
 The application is organized around the `books` feature, a small `settings` page, and shared presentation/diagnostic utilities. It uses standalone components rather than an application `NgModule`.

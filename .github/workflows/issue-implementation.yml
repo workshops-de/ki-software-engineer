@@ -1,37 +1,123 @@
-name: Issue Implementation Preparation
+name: Issue Implementation
 
 on:
   issues:
     types: [labeled]
 
+concurrency:
+  group: issue-implementation-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
   prepare-implementation:
     if: github.event.label.name == 'ready-for-implementation'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
+      contents: read
+      issues: read
+      actions: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Prepare Feature Branch
         id: prepare-branch
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Skills are Codex instructions, not shell commands.
-          # Convert to lowercase and replace spaces with hyphens: feature/{number}-{title}.
-          BRANCH_NAME=$(printf '%s' "feature/${ISSUE_NUMBER}-${ISSUE_TITLE}" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g' | sed 's#[^a-z0-9/-]##g')
-          printf 'branch_name=%s\n' "$BRANCH_NAME" >> "$GITHUB_OUTPUT"
-
+          branch_name="codex/issue-${ISSUE_NUMBER}"
+          git switch -c "$branch_name"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          printf 'branch_name=%s\n' "$branch_name" >> "$GITHUB_OUTPUT"
+          printf 'base_sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure Codex
+        run: |
+          mkdir -p "$RUNNER_TEMP/codex-home"
+          cat > "$RUNNER_TEMP/codex-home/config.toml" <<'EOF'
+          default_permissions = "github-issues"
+
+          [features]
+          network_proxy = true
+
+          [permissions.github-issues]
+          extends = ":workspace"
+
+          [permissions.github-issues.network]
+          enabled = true
+
+          [permissions.github-issues.network.domains]
+          "api.github.com" = "allow"
+          EOF
+
+      - name: Run ci-se-green skill
+        id: implement
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY2 }}
+          codex-home: ${{ runner.temp }}/codex-home
+          permission-profile: github-issues
+          safety-strategy: drop-sudo
+          model: 'gpt-5.6-luna'
+          output-file: ${{ runner.temp }}/green-result.json
+          output-schema: |
+            {"type":"object","properties":{"status":{"type":"string","enum":["implemented","blocked"]},"summary":{"type":"string"}},"required":["status","summary"],"additionalProperties":false}
+          prompt: |
+            /ci-se-green
+
+            Read and follow .agents/skills/ci-se-green/SKILL.md to execute this skill.
+            Resolve its context from the values below; GitHub expressions inside SKILL.md
+            are documentation placeholders, not interpolated values.
+            Read the issue, comments, and relevant existing failing CI test output via gh.
+            Follow the skill's prerequisites. If the necessary failure evidence is missing,
+            return status "blocked" and explain what is missing in summary.
+            Implement and create local commits as required by the skill on the current branch.
+            Keep GitHub access read-only. Do not switch branches or push.
+            The workflow exports your commits as a patch artifact afterward.
+            Do not run tests, builds, or linters during this Green phase.
+            Return status "implemented" only when the required implementation is committed.
+
+            REPO: ${{ github.repository }}
+            ISSUE_NUMBER: ${{ github.event.issue.number }}
+            BRANCH: ${{ steps.prepare-branch.outputs.branch_name }}
+
+      - name: Verify result and export implementation
+        env:
+          BRANCH_NAME: ${{ steps.prepare-branch.outputs.branch_name }}
+          BASE_SHA: ${{ steps.prepare-branch.outputs.base_sha }}
+          CODEX_RESULT: ${{ steps.implement.outputs.final-message }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const result = JSON.parse(process.env.CODEX_RESULT);
+          console.log(result.summary);
+          if (result.status !== 'implemented') {
+            console.error('ci-se-green could not complete the implementation.');
+            process.exit(1);
+          }
+          NODE
+          test "$(git branch --show-current)" = "$BRANCH_NAME"
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "ci-se-green left uncommitted changes; implementation is incomplete." >&2
+            exit 1
+          fi
+          git format-patch --binary --stdout "$BASE_SHA..HEAD" > "$RUNNER_TEMP/green-implementation.patch"
+
+      - name: Upload skill result
+        if: always() && steps.implement.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-se-green-issue-${{ github.event.issue.number }}
+          path: |
+            ${{ runner.temp }}/green-result.json
+            ${{ runner.temp }}/green-implementation.patch
+          if-no-files-found: warn
