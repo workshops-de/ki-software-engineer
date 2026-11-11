@@ -33,6 +33,7 @@ jobs:
       base_sha: ${{ steps.prepare.outputs.base_sha }}
       digest: ${{ steps.prepare.outputs.digest }}
       candidate: ${{ steps.codex.outputs.final-message }}
+      codex_outcome: ${{ steps.codex.outcome }}
     steps:
       - name: Check out the trusted default-branch snapshot
         uses: actions/checkout@v4
@@ -125,7 +126,7 @@ jobs:
               'enabled = false', ''
             ].join('\n');
             fs.writeFileSync(path.join(codexHome, 'config.toml'), config, { mode: 0o600 });
-            execFileSync('git', ['-c', 'core.hooksPath=/dev/null', 'switch', '-c', branch]);
+            // Compute the name only. A feature branch is created after successful verification.
             core.setOutput('branch', branch);
             core.setOutput('base_ref', context.payload.repository.default_branch);
             core.setOutput('base_sha', execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());
@@ -215,11 +216,165 @@ jobs:
             -- /dev/null DATEI abbilden (Exitcode 1 bedeutet hier einen vorhandenen Diff).
             Schreibe NICHT in den Git-Index. Der Patch muss alle neuen Dateien enthalten.
             Bei unklaren Anforderungen, benoetigten geschuetzten Aenderungen, Toolfehlern
-            oder fehlendem Quellenzugriff: status=blocked, patch leer und Grund in summary.
+            oder fehlendem Quellenzugriff: status=blocked, patch leer und eine konkrete
+            Begruendung beziehungsweise Rueckfrage in summary. summary darf nie leer sein.
+            Die Rueckfrage wird separat als Issue-Kommentar veroeffentlicht. Gib keine
+            Secrets oder vollstaendigen Patches in summary aus.
+
+  classify:
+    needs: implement
+    # Diagnose missing/suppressed outputs and upstream failures instead of silently skipping them.
+    if: ${{ !cancelled() && needs.implement.outputs.proceed == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions: {}
+    outputs:
+      status: ${{ steps.result.outputs.status }}
+    steps:
+      - name: Classify the untrusted Codex final-message
+        id: result
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          CANDIDATE: ${{ needs.implement.outputs.candidate }}
+          IMPLEMENT_RESULT: ${{ needs.implement.result }}
+          CODEX_OUTCOME: ${{ needs.implement.outputs.codex_outcome }}
+        with:
+          script: |
+            // Diagnostics contain only fixed codes, enum values and sizes, never response contents.
+            core.setOutput('status', 'invalid');
+            const fail = (code, reason) => {
+              core.setFailed('Codex result invalid [' + code + ']: ' + reason);
+            };
+            if (process.env.IMPLEMENT_RESULT !== 'success' || process.env.CODEX_OUTCOME !== 'success') {
+              fail('UPSTREAM_FAILURE', 'The implementation job or Codex action failed; inspect that step.');
+              return;
+            }
+            const raw = process.env.CANDIDATE ?? '';
+            const bytes = Buffer.byteLength(raw, 'utf8');
+            core.info('Received final-message job output: ' + bytes + ' UTF-8 bytes.');
+            if (!raw.trim()) {
+              fail('EMPTY_RESULT', 'No final-message arrived. Check Codex output and the implement job for a skipped or secret-suppressed candidate output.');
+              return;
+            }
+            if (bytes > 80000) { fail('RESULT_TOO_LARGE', 'The response exceeds 80000 UTF-8 bytes.'); return; }
+            let candidate;
+            try { candidate = JSON.parse(raw); } catch {
+              fail('INVALID_JSON', 'final-message is not a JSON document; response contents are withheld.');
+              return;
+            }
+            if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+              fail('INVALID_OBJECT', 'Expected an object with status, summary and patch.'); return;
+            }
+            for (const key of ['status', 'summary', 'patch']) {
+              if (!Object.hasOwn(candidate, key)) { fail('MISSING_FIELD', 'Required field missing: ' + key); return; }
+            }
+            if (Object.keys(candidate).sort().join(',') !== 'patch,status,summary') {
+              fail('UNEXPECTED_FIELDS', 'Only status, summary and patch are allowed.'); return;
+            }
+            if (!['implemented', 'blocked'].includes(candidate.status)) {
+              fail('INVALID_STATUS', 'Status must be implemented or blocked.'); return;
+            }
+            if (typeof candidate.summary !== 'string' || !candidate.summary.trim() || candidate.summary.length > 2000) {
+              fail('INVALID_SUMMARY', 'summary must contain 1 to 2000 characters of explanation.'); return;
+            }
+            if (typeof candidate.patch !== 'string') {
+              fail('INVALID_PATCH_TYPE', 'patch must be a string.'); return;
+            }
+            if (candidate.status === 'implemented' && !candidate.patch.trim()) {
+              fail('EMPTY_IMPLEMENTED_PATCH', 'An implemented result requires a non-empty patch.'); return;
+            }
+            if (candidate.status === 'blocked' && candidate.patch.trim()) {
+              fail('BLOCKED_WITH_PATCH', 'A blocked result must have an empty patch.'); return;
+            }
+            core.setOutput('status', candidate.status);
+            core.notice('Codex result: ' + candidate.status + '; summary present; patch bytes: ' +
+              Buffer.byteLength(candidate.patch, 'utf8') + '.');
+            await core.summary.addHeading('Codex implementation result')
+              .addRaw(candidate.status === 'blocked'
+                ? 'Blocked: awaiting clarification. The separate clarification job publishes the reason in the issue.'
+                : 'Implemented candidate: patch, build and test verification must pass before publication.')
+              .write();
+
+  clarify:
+    # This job deliberately has no dependency on verify, which is skipped for blocked results.
+    needs: [implement, classify]
+    if: >-
+      ${{ !cancelled() && needs.implement.result == 'success' &&
+          needs.classify.result == 'success' && needs.classify.outputs.status == 'blocked' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - name: Publish or update the implementation clarification comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          CANDIDATE: ${{ needs.implement.outputs.candidate }}
+          ISSUE_DIGEST: ${{ needs.implement.outputs.digest }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            const crypto = require('node:crypto');
+            const { issue: eventIssue, label, sender } = context.payload;
+            if (context.eventName !== 'issues' || context.payload.action !== 'labeled' ||
+                label.name !== 'ready-for-implementation' || eventIssue.pull_request ||
+                eventIssue.user.login !== 'Carolin724' || sender.type !== 'User' ||
+                context.actor !== 'Carolin724' || process.env.GITHUB_TRIGGERING_ACTOR !== 'Carolin724') {
+              throw new Error('Unauthorized clarification publication');
+            }
+            const raw = process.env.CANDIDATE ?? '';
+            if (Buffer.byteLength(raw, 'utf8') > 80000) throw new Error('Clarification result too large');
+            let candidate;
+            try { candidate = JSON.parse(raw); } catch { throw new Error('Clarification result is not valid JSON'); }
+            if (!candidate || candidate.status !== 'blocked' ||
+                Object.keys(candidate).sort().join(',') !== 'patch,status,summary' ||
+                typeof candidate.summary !== 'string' || !candidate.summary.trim() || candidate.summary.length > 2000 ||
+                typeof candidate.patch !== 'string' || candidate.patch.trim()) {
+              throw new Error('Invalid blocked result; no clarification published');
+            }
+            const params = { ...context.repo, issue_number: eventIssue.number };
+            const { data: issue } = await github.rest.issues.get(params);
+            if (issue.pull_request || issue.user.login !== 'Carolin724' || issue.state !== 'open' ||
+                !issue.labels.some(l => l.name === 'ready-for-implementation')) {
+              core.notice('Issue is no longer eligible; clarification publication skipped.');
+              return;
+            }
+            const { data: authenticated } = await github.rest.users.getAuthenticated();
+            const comments = await github.paginate(github.rest.issues.listComments, { ...params, per_page: 100 });
+            const marker = '<!-- codex-implementation-blocked:' + eventIssue.number + ' -->';
+            // PAT comments are authored by the authenticated PAT owner, not necessarily a bot.
+            const existing = comments.find(c => c.user?.id === authenticated.id && c.body?.startsWith(marker));
+            let explanation = candidate.summary
+              .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '');
+            if (process.env.GH_TOKEN) explanation = explanation.split(process.env.GH_TOKEN).join('[REDACTED]');
+            explanation = explanation
+              .replace(/\b(?:github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9]{20,}|sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{16,})\b/g, '[REDACTED]')
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/([\\`*_{}\[\]()#+.!|~-])/g, '\\$1').replace(/@/g, '@\u200b');
+            const body = [marker, '## Implementierung wartet auf Klärung', '',
+              'Codex hat die Implementierung als `blocked` gemeldet. Es wurde kein Feature-Branch und kein Pull Request veröffentlicht.',
+              '', '**Begründung beziehungsweise Rückfrage:**', '', explanation, '',
+              'Bitte die Rückfrage im Issue klären. Danach kann Carolin724 das Label `ready-for-implementation` entfernen und erneut setzen.',
+              '', '_Automatische Rückmeldung von OpenAI Codex (gpt-5.6-luna)._' ].join('\n');
+            if (existing?.body === body) {
+              core.notice('Clarification comment unchanged: ' + existing.html_url);
+              return;
+            }
+            const snapshot = JSON.stringify({ title: issue.title, body: issue.body,
+              comments: comments.filter(c => c.user?.type === 'User')
+                .map(c => ({ id: c.id, updated_at: c.updated_at, body: c.body })) });
+            if (crypto.createHash('sha256').update(snapshot).digest('hex') !== process.env.ISSUE_DIGEST) {
+              throw new Error('Issue context changed; re-run the implementation before publishing a new clarification');
+            }
+            const response = existing
+              ? await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
+              : await github.rest.issues.createComment({ ...params, body });
+            core.notice('Clarification comment ' + (existing ? 'updated: ' : 'created: ') + response.data.html_url);
+            await core.summary.addLink('Implementation awaiting clarification', response.data.html_url).write();
 
   verify:
-    needs: implement
-    if: needs.implement.outputs.proceed == 'true' && needs.implement.outputs.candidate != ''
+    needs: [implement, classify]
+    if: needs.classify.result == 'success' && needs.classify.outputs.status == 'implemented'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -244,11 +399,13 @@ jobs:
             const { spawnSync } = require('node:child_process');
             const raw = process.env.CANDIDATE ?? '';
             if (Buffer.byteLength(raw, 'utf8') > 80000) throw new Error('Candidate too large');
-            const candidate = JSON.parse(raw);
-            if (candidate.status !== 'implemented' || typeof candidate.summary !== 'string' ||
+            let candidate;
+            try { candidate = JSON.parse(raw); } catch { throw new Error('Technical result error [INVALID_JSON] during verification'); }
+            if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate) ||
+                candidate.status !== 'implemented' || typeof candidate.summary !== 'string' ||
                 candidate.summary.length > 2000 || typeof candidate.patch !== 'string' || !candidate.patch.trim() ||
                 Object.keys(candidate).sort().join(',') !== 'patch,status,summary') {
-              throw new Error('Implementation blocked or invalid candidate; no publication');
+              throw new Error('Technical result error [INVALID_IMPLEMENTED_CANDIDATE] during verification; no publication');
             }
             const git = (args, input) => {
               const r = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args],
@@ -337,8 +494,10 @@ jobs:
           NODE
 
   publish:
-    needs: [implement, verify]
-    if: needs.verify.result == 'success' && needs.implement.outputs.proceed == 'true'
+    needs: [implement, classify, verify]
+    if: >-
+      needs.verify.result == 'success' && needs.implement.outputs.proceed == 'true' &&
+      needs.classify.result == 'success' && needs.classify.outputs.status == 'implemented'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # GITHUB_TOKEN needs no permissions here; the PAT is scoped to checkout and publication.
@@ -411,8 +570,10 @@ jobs:
             if (base.data.object.sha !== process.env.BASE_SHA) throw new Error('Base branch advanced; re-run against the new base');
             const raw = process.env.CANDIDATE ?? '';
             if (Buffer.byteLength(raw, 'utf8') > 80000) throw new Error('Candidate too large');
-            const candidate = JSON.parse(raw);
-            if (candidate.status !== 'implemented' || typeof candidate.summary !== 'string' ||
+            let candidate;
+            try { candidate = JSON.parse(raw); } catch { throw new Error('Technical result error [INVALID_JSON] during publication'); }
+            if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate) ||
+                candidate.status !== 'implemented' || typeof candidate.summary !== 'string' ||
                 candidate.summary.length > 2000 || typeof candidate.patch !== 'string' || !candidate.patch.trim() ||
                 Object.keys(candidate).sort().join(',') !== 'patch,status,summary') {
               throw new Error('Invalid candidate');
