@@ -43,7 +43,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY2 }}
           codex-home: ${{ runner.temp }}/codex-home
           permission-profile: github-issues
           safety-strategy: drop-sudo
