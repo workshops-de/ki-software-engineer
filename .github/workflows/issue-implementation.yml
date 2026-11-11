@@ -1,0 +1,37 @@
+name: Issue Implementation Preparation
+
+on:
+ issues:
+     types: [labeled]
+
+jobs:
+ prepare-implementation:
+     if: github.event.label.name == 'ready-for-implementation'
+     runs-on: ubuntu-latest
+     timeout-minutes: 15
+     permissions:
+         contents: write
+         issues: write
+         pull-requests: write
+
+     steps:
+         - name: Checkout repository
+           uses: actions/checkout@v4
+           with:
+               fetch-depth: 0
+
+         - name: Prepare Feature Branch
+           id: prepare-branch
+           run: |
+               /ci-se-green
+                                 
+               ISSUE_NUMBER=${{ github.event.issue.number }}
+               ISSUE_TITLE="${{ github.event.issue.title }}"
+               
+                                 # Convert to lowercase and replace spaces with hyphens, format: feature/{number}-{title}
+               BRANCH_NAME=$(echo "feature/${ISSUE_NUMBER}-${ISSUE_TITLE}" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g' | sed 's/[^a-z0-9\-\/]//g')
+
+               git config user.name "github-actions[bot]"
+               git config user.email "github-actions[bot]@users.noreply.github.com"
+           env:
+               GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
