@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { cameraDistance, Galaxy, Point } from './universe-data';
+import { EnterpriseShip } from './enterprise-ship';
 
 /** Owns all GPU resources and DOM listeners; Angular only receives semantic events. */
 export class UniverseRenderer {
@@ -18,6 +19,8 @@ export class UniverseRenderer {
   private readonly color = new THREE.Color();
   private readonly time = { value: 0 };
   private stars?: THREE.Points;
+  private enterprise?: EnterpriseShip;
+  private flightLabel?: HTMLSpanElement;
   private readonly labels: { element: HTMLSpanElement; position: THREE.Vector3; index: number }[] = [];
   private readonly media = matchMedia('(prefers-reduced-motion: reduce)');
   private readonly cleanups: (() => void)[] = [];
@@ -55,6 +58,17 @@ export class UniverseRenderer {
         'Dreidimensionale Büchergalaxie. Bücher auch über Suche und Buchliste auswählen.'
       );
       this.host.append(this.renderer.domElement);
+      this.enterprise = new EnterpriseShip();
+      this.camera.add(this.enterprise);
+      this.scene.add(this.camera);
+      this.flightLabel = document.createElement('span');
+      this.flightLabel.className = 'space-label';
+      this.flightLabel.textContent = 'USS ENTERPRISE · NCC-1701-D';
+      this.flightLabel.setAttribute('aria-hidden', 'true');
+      this.flightLabel.style.cssText =
+        'left:45%;top:60%;max-width:none;transform:translateX(-50%);color:#a9dcff;font-size:10px;letter-spacing:0.12em';
+      this.flightLabel.hidden = true;
+      this.host.append(this.flightLabel);
       this.controls = new OrbitControls(this.camera, this.renderer.domElement);
       this.controls.enableDamping = true;
       this.controls.minDistance = 4;
@@ -172,14 +186,14 @@ export class UniverseRenderer {
     this.cleanups.push(() => this.renderer.domElement.removeEventListener(type, listener));
   }
   private readonly manual = (): void => {
-    this.flight = undefined;
+    this.stopFlight();
     this.controls.autoRotate = false;
     this.onManual();
   };
   private readonly motionChanged = (): void => {
     if (this.media.matches) {
       this.controls.autoRotate = false;
-      this.flight = undefined;
+      this.stopFlight();
     }
   };
   private resize(): void {
@@ -187,6 +201,12 @@ export class UniverseRenderer {
       height = this.host.clientHeight;
     const previousAspect = this.camera.aspect;
     this.camera.aspect = width / Math.max(1, height);
+    if (this.flightLabel) {
+      const portrait = this.camera.aspect < 0.9;
+      this.flightLabel.style.left = portrait ? '78%' : '45%';
+      this.flightLabel.style.top = portrait ? '26%' : '60%';
+      this.flightLabel.style.fontSize = portrait ? '6px' : '10px';
+    }
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
     if (Math.abs(previousAspect - this.camera.aspect) > 0.05 && this.extent) {
@@ -326,7 +346,7 @@ export class UniverseRenderer {
     if (immediate || this.media.matches) {
       this.camera.position.copy(to);
       this.controls.target.copy(target);
-      this.flight = undefined;
+      this.stopFlight();
       this.controls.update();
       return;
     }
@@ -343,9 +363,12 @@ export class UniverseRenderer {
   }
   stopFlight(): void {
     this.flight = undefined;
+    if (this.enterprise) this.enterprise.visible = false;
+    if (this.flightLabel) this.flightLabel.hidden = true;
   }
   private readonly frame = (now: number): void => {
     if (this.disposed || document.hidden) return;
+    if (this.media.matches && this.flight) this.stopFlight();
     if (this.pendingPointer) {
       const event = this.pendingPointer;
       this.pendingPointer = undefined;
@@ -356,7 +379,9 @@ export class UniverseRenderer {
         eased = t * t * (3 - 2 * t);
       this.camera.position.lerpVectors(this.flight.from, this.flight.to, eased);
       this.controls.target.lerpVectors(this.flight.targetFrom, this.flight.target, eased);
-      if (t === 1) this.flight = undefined;
+      this.enterprise?.animate(t, this.camera.aspect);
+      if (this.flightLabel) this.flightLabel.hidden = !this.enterprise?.visible;
+      if (t === 1) this.stopFlight();
     }
     this.controls.update();
     this.time.value = this.media.matches ? 0 : now / 1000;
@@ -400,6 +425,7 @@ export class UniverseRenderer {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.stopFlight();
     this.renderer.setAnimationLoop(null);
     this.observer?.disconnect();
     this.controls?.removeEventListener('start', this.manual);
@@ -420,6 +446,7 @@ export class UniverseRenderer {
     this.renderer.dispose();
     this.renderer.forceContextLoss();
     this.labels.forEach(label => label.element.remove());
+    this.flightLabel?.remove();
     this.renderer.domElement.remove();
   }
 }

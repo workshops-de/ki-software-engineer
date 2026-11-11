@@ -80,6 +80,12 @@ canvas interaction. Discovery visits clusters and ISBN-sorted books with start,
 pause, resume, previous, next and stop controls; manual camera input and hidden
 tabs pause it. Reduced motion disables rotation, floating and extended flights.
 
+During camera flights, a procedural Galaxy-class USS Enterprise NCC-1701-D appears
+in chase view with an oval saucer, twin glowing warp nacelles and a gentle bank.
+It fades out on arrival and disappears on cancellation, Discovery pause/stop or
+navigation. Reduced motion skips the ship animation. The model uses shared Three.js
+geometry and materials, requires no external assets and is disposed with the scene.
+
 Planets and halos use shared instanced geometry, links are batched, labels are
 bounded and culled, and device pixel ratio is capped. ResizeObserver refits on
 aspect changes. The renderer owns and releases listeners, controls, labels,

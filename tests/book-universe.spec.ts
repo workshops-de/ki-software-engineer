@@ -69,6 +69,69 @@ for (const mobile of [false, true]) {
   });
 }
 
+test('Enterprise accompanies planet flights, arrives, stops and respects reduced motion', async ({ page }) => {
+  await page.clock.install();
+  await setupUniverse(page);
+  const ship = page.getByText('USS ENTERPRISE · NCC-1701-D', { exact: true });
+  const input = page.getByRole('combobox', { name: 'Galaxie durchsuchen' });
+  await expect(ship).toBeHidden();
+  await input.fill('practice');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+  await input.press('Enter');
+  await page.clock.runFor(300);
+  await expect(ship).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('enterprise-flight.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.runFor(50);
+  // Resizing cancels the current flight; a new one uses the portrait camera aspect.
+  await input.fill('SQL');
+  await input.press('Enter');
+  await page.clock.runFor(300);
+  await expect(ship).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('enterprise-flight-mobile.png') });
+  await page.clock.runFor(1000);
+  await expect(ship).toBeHidden();
+
+  await input.fill('SQL');
+  await input.press('Enter');
+  await page.clock.runFor(300);
+  await expect(ship).toBeVisible();
+  // Manual zoom cancels the camera flight and the accompanying ship.
+  await page.locator('.bm-scene canvas').dispatchEvent('wheel', { deltaY: 80, deltaMode: 0 });
+  await expect(ship).toBeHidden();
+
+  await input.fill('practice');
+  await input.press('Enter');
+  await page.clock.runFor(300);
+  await expect(ship).toBeVisible();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.clock.runFor(50);
+  await expect(ship).toBeHidden();
+  await input.fill('SQL');
+  await input.press('Enter');
+  await page.clock.runFor(300);
+  await expect(ship).toBeHidden();
+});
+
+test('Discovery flies with the Enterprise and removes it on pause and navigation', async ({ page }) => {
+  await page.clock.install();
+  await setupUniverse(page);
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+  const ship = page.getByText('USS ENTERPRISE · NCC-1701-D', { exact: true });
+  await page.getByRole('button', { name: 'Discovery starten' }).dispatchEvent('click');
+  await page.clock.runFor(300);
+  await expect(ship).toBeVisible();
+  await page.getByRole('button', { name: 'Pause', exact: true }).dispatchEvent('click');
+  await expect(ship).toBeHidden();
+  await page.getByRole('button', { name: 'Nächstes Buch' }).dispatchEvent('click');
+  await page.clock.runFor(300);
+  await expect(ship).toBeVisible();
+  await page.getByRole('button', { name: 'Beenden', exact: true }).dispatchEvent('click');
+  await expect(ship).toBeHidden();
+  await page.getByRole('link', { name: 'Büchersammlung öffnen', exact: true }).dispatchEvent('click');
+  await expect(ship).toHaveCount(0);
+});
+
 test('loads full collection, selects by keyboard, opens existing details and returns to list', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
