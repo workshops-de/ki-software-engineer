@@ -24,9 +24,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          model: "gpt-5.6-luna"
+          model: 'gpt-5.6-luna'
+          sandbox: workspace-write
+          codex-args: '["-c", "sandbox_workspace_write.network_access=true"]'
           prompt: |
             $ci-re-review
                           
             REPOSITORY: ${{ github.repository }}
-            ISSUE_NUMBER: ${{ github.event.issue.number || github.event.comment.issue_url }}
+            ISSUE_NUMBER: ${{ github.event.issue.number }}
