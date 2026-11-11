@@ -23,7 +23,7 @@ jobs:
          - name: Prepare Feature Branch
            id: prepare-branch
            run: |
-               /ci-se-green
+               /bookmonkey-developer-green
                                  
                ISSUE_NUMBER=${{ github.event.issue.number }}
                ISSUE_TITLE="${{ github.event.issue.title }}"
