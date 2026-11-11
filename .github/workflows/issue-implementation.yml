@@ -1,37 +1,37 @@
 name: Issue Implementation Preparation
 
 on:
- issues:
-     types: [labeled]
+  issues:
+    types: [labeled]
 
 jobs:
- prepare-implementation:
-     if: github.event.label.name == 'ready-for-implementation'
-     runs-on: ubuntu-latest
-     timeout-minutes: 15
-     permissions:
-         contents: write
-         issues: write
-         pull-requests: write
+  prepare-implementation:
+    if: github.event.label.name == 'ready-for-implementation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
 
-     steps:
-         - name: Checkout repository
-           uses: actions/checkout@v4
-           with:
-               fetch-depth: 0
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-         - name: Prepare Feature Branch
-           id: prepare-branch
-           run: |
-               /ci-se-green
-                                 
-               ISSUE_NUMBER=${{ github.event.issue.number }}
-               ISSUE_TITLE="${{ github.event.issue.title }}"
-               
-                                 # Convert to lowercase and replace spaces with hyphens, format: feature/{number}-{title}
-               BRANCH_NAME=$(echo "feature/${ISSUE_NUMBER}-${ISSUE_TITLE}" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g' | sed 's/[^a-z0-9\-\/]//g')
+      - name: Prepare Feature Branch
+        id: prepare-branch
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Skills are Codex instructions, not shell commands.
+          # Convert to lowercase and replace spaces with hyphens: feature/{number}-{title}.
+          BRANCH_NAME=$(printf '%s' "feature/${ISSUE_NUMBER}-${ISSUE_TITLE}" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g' | sed 's#[^a-z0-9/-]##g')
+          printf 'branch_name=%s\n' "$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
-               git config user.name "github-actions[bot]"
-               git config user.email "github-actions[bot]@users.noreply.github.com"
-           env:
-               GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
