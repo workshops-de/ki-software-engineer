@@ -12,7 +12,7 @@ Context:
 - REPO: ${{ github.repository }}
 - ISSUE: ${{ github.event.issue.number || github.event.comment.issue_url }}
 
-If an analysis comment already exists, update it; otherwise add a new comment titled "🔄 Updated Analysis".
+If an analysis comment already exists, update it; otherwise add a new comment titled "🔄 Updated Analysis" and update the labels.
 
 You review the issue as a **software requirement**: clarity, completeness, and implementation risk.
 
@@ -41,7 +41,7 @@ You review the issue as a **software requirement**: clarity, completeness, and i
 - Risks / open decisions: [bullets]
 
 ### Next steps
-- If **SUFFICIENT:** suggest label `ready-for-implementation` and a feature branch name.
+- If **SUFFICIENT:** suggest label `wait-for-human-approval` and a feature branch name.
 - If **NEEDS IMPROVEMENT:** suggest label `needs-clarification` and **specific questions** (not generic).
 
 ---
