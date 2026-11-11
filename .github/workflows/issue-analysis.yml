@@ -20,13 +20,14 @@ jobs:
 
       - name: Analyze Issues
         uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY2 }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          permission-profile: ":workspace"
-          model: "gpt-5.6-luna"
+          permission-profile: ':workspace'
+          model: 'gpt-5.6-luna'
           prompt: |
             /ci-re-review
-                          
+
             REPOSITORY: ${{ github.repository }}
             ISSUE_NUMBER: ${{ github.event.issue.number || github.event.comment.issue_url }}
