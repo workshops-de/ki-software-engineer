@@ -437,7 +437,9 @@ jobs:
                ['src/app/app.ts', 'src/app/app.html', 'src/app/app.css', 'src/app/app.routes.ts',
                 'src/styles.css', testPath].includes(file)) &&
               !/(^|\/)(security|auth|secrets?)([./-]|$)|\.config\./i.test(file);
-            const records = git(['apply', '--numstat', '-z', '-'], candidate.patch).split('\0').filter(Boolean);
+            const records = git(['apply', '--numstat', '-'], candidate.patch)
+              .split('\n')
+              .filter(Boolean);
             const files = records.map(record => {
               const match = record.match(/^(\d+)\t(\d+)\t(.+)$/s);
               if (!match || !allowed(match[3])) throw new Error('Patch touches forbidden or binary files');
@@ -609,7 +611,9 @@ jobs:
                ['src/app/app.ts', 'src/app/app.html', 'src/app/app.css', 'src/app/app.routes.ts',
                 'src/styles.css', testPath].includes(file)) &&
               !/(^|\/)(security|auth|secrets?)([./-]|$)|\.config\./i.test(file);
-            const records = git(['apply', '--numstat', '-z', '-'], candidate.patch).split('\0').filter(Boolean);
+            const records = git(['apply', '--numstat', '-'], candidate.patch)
+              .split('\n')
+              .filter(Boolean);
             const files = records.map(record => {
               const match = record.match(/^(\d+)\t(\d+)\t(.+)$/s);
               if (!match || !allowed(match[3])) throw new Error('Patch touches forbidden or binary files');
