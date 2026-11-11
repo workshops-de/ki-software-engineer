@@ -5,9 +5,11 @@ export interface Book {
   subtitle?: string;
   author: string;
   publisher: string;
-  numPages: number;
+  numPages?: number;
   price: string;
   cover: string;
   abstract: string;
   userId: number;
+  publishedAt?: string;
+  coAuthors?: string[];
 }

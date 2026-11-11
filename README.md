@@ -12,6 +12,10 @@
   <br>
 </p>
 
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the project's dependencies, technology stack, architecture, and current weaknesses.
+
 ## Local Development
 
 | Command       | Description                                      |
