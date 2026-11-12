@@ -1,0 +1,119 @@
+name: Auto-Fix CI Failures
+ 
+on:
+  workflow_run:
+    workflows: ['Code Review']
+    types:
+      - completed
+ 
+jobs:
+  auto-fix:
+    # Only run if the CI workflow failed
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+ 
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Use the SHA from the failed workflow run
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+ 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+ 
+      - name: Install dependencies
+        run: npm ci
+ 
+      - name: Run Auto-Fix
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY2 }}
+          prompt: |
+            A CI build has failed. Analyze the errors and fix them automatically.
+ 
+            **Build Details:**
+            - Repository: ${{ github.repository }}
+            - Workflow: ${{ github.event.workflow_run.name }}
+            - Branch: ${{ github.event.workflow_run.head_branch }}
+            - Commit: ${{ github.event.workflow_run.head_sha }}
+            - Workflow Run URL: ${{ github.event.workflow_run.html_url }}
+ 
+            **Your Task:**
+            1. Download the workflow logs and analyze the errors
+            2. Identify the root causes (build errors, linting problems, tests, etc.)
+            3. Perform automatic fixes for:
+               - YAML syntax errors in frontmatter
+               - TypeScript/JavaScript errors
+               - Import/export problems
+               - Package.json dependencies
+            4. Test the fixes locally with `npm run build`
+            5. Commit the changes with a descriptive commit message
+ 
+            **Important Rules:**
+            - Use Conventional Commits standard
+            - ALWAYS test with `npm run build` before committing
+            - If multiple fixes are needed, create separate commits
+            - For critical errors, create an issue instead of auto-fixing
+ 
+            **Example Commit Messages:**
+            - `fix: yaml syntax error in blog frontmatter`
+            - `chore: update dependencies to resolve build issues`
+ 
+            Begin by analyzing the workflow logs!
+ 
+      - name: Verify fixes with build test
+        run: |
+          echo "Testing if auto-fixes resolved the build issues..."
+          npm run build
+ 
+      - name: Create Pull Request if changes were made
+        if: success()
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "Changes detected, but they should already be committed by Claude"
+            echo "Checking if we're on main branch..."
+            if [[ $(git branch --show-current) == "main" ]]; then
+              echo "Direct commits to main detected"
+              git log -1 --pretty=format:"%h - %s (%an)"
+            fi
+          else
+            echo "No uncommitted changes found"
+          fi
+ 
+  notify-failure:
+    if: ${{ always() && needs.auto-fix.result == 'failure' }}
+    needs: auto-fix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create issue for failed auto-fix
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🤖 Auto-Fix Failed - Manual Intervention Required',
+              body: `## Auto-Fix Error
+ 
+            The automatic fix for the CI error has failed.
+ 
+            **Details:**
+            - Workflow: ${{ github.event.workflow_run.name }}
+            - Branch: ${{ github.event.workflow_run.head_branch }}
+            - Commit: ${{ github.event.workflow_run.head_sha }}
+            - Auto-Fix Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - Original Failed Run: ${{ github.event.workflow_run.html_url }}
+ 
+            Please review the logs and fix the issues manually.`,
+              labels: ['bug', 'auto-fix-failed', 'needs-attention']
+            })

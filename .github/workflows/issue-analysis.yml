@@ -1,4 +1,4 @@
-name: Issue Analysis with Claude
+name: Issue Analysis
 
 on:
   issues:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   analyze-issue:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
